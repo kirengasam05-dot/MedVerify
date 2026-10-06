@@ -92,8 +92,8 @@ function Dashboard({ scans }: { scans: Scan[] }) {
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4 mb-6">
-        <section className="rounded-lg bg-white border border-ink/10 p-4 lg:col-span-2">
+      <div className="grid gap-4 mb-6">
+        <section className="rounded-lg bg-white border border-ink/10 p-4">
           <h2 className="font-semibold mb-3">Results by category</h2>
           {CATS.map((c, i) => (
             <div key={c} className="flex items-center gap-3 mb-2 text-sm">
@@ -103,15 +103,6 @@ function Dashboard({ scans }: { scans: Scan[] }) {
                   style={{ width: `${(counts[i] / max) * 100}%` }} />
               </div>
               <span className="w-8 text-right font-mono">{counts[i]}</span>
-            </div>
-          ))}
-        </section>
-        <section className="rounded-lg bg-white border border-ink/10 p-4">
-          <h2 className="font-semibold mb-3">Flagged by location</h2>
-          {LOCATIONS.map(l => (
-            <div key={l} className="flex justify-between text-sm py-1.5 border-b border-ink/5 last:border-0">
-              <span>{l}</span>
-              <span className="font-mono">{flagged.filter(s => s.location === l).length}</span>
             </div>
           ))}
         </section>
