@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import {
   fetchScans,
   fetchProducts,
@@ -8,8 +9,11 @@ import {
   addProduct,
   toggleProductStatus,
   seedDemoData,
-  checkHealth
+  checkHealth,
+  fetchCurrentUser
 } from './api'
+import type { CurrentUser } from './api'
+import { auth } from './firebase'
 import { classify, actionFor, tone } from './classify'
 import type { Scan, Product, Category, CaseStatus, CodeMatch } from './types'
 import BarcodeScanner from './components/BarcodeScanner'
@@ -49,15 +53,18 @@ export default function App() {
   const [tab, setTab] = useState<'dash' | 'scan' | 'registry'>('dash')
   const [scans, setScans] = useState<Scan[]>([])
   const [products, setProducts] = useState<(Product & { id: string })[]>([])
-  const [apiOnline, setApiOnline] = useState<boolean | null>(null)
+  const [health, setHealth] = useState<Awaited<ReturnType<typeof checkHealth>> | null>(null)
   const [error, setError] = useState('')
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
+  const [authReady, setAuthReady] = useState(false)
+  const [authError, setAuthError] = useState('')
 
   // Load data from Backend Gateway API
   const refreshData = async () => {
     try {
-      const isUp = await checkHealth()
-      setApiOnline(isUp)
-      if (isUp) {
+      const status = await checkHealth()
+      setHealth(status)
+      if (status.status === 'online') {
         const [scansData, prodsData] = await Promise.all([fetchScans(), fetchProducts()])
         setScans(scansData)
         setProducts(prodsData)
@@ -71,16 +78,43 @@ export default function App() {
   }
 
   useEffect(() => {
-    refreshData()
-    // Auto-refresh every 3 seconds to catch live scans from hardware or other terminals
-    const timer = setInterval(refreshData, 3000)
-    return () => clearInterval(timer)
+    return onAuthStateChanged(auth, async (user) => {
+      setAuthError('')
+      if (!user) {
+        setCurrentUser(null)
+        setAuthReady(true)
+        return
+      }
+      try {
+        const profile = await fetchCurrentUser()
+        setCurrentUser(profile)
+      } catch (err: any) {
+        setCurrentUser(null)
+        setAuthError(err?.message || 'Could not verify your assigned role.')
+      } finally {
+        setAuthReady(true)
+      }
+    })
   }, [])
 
+  useEffect(() => {
+    if (!currentUser) return
+    void refreshData()
+    const timer = window.setInterval(() => void refreshData(), 3000)
+    return () => window.clearInterval(timer)
+  }, [currentUser])
+
+  const handleSignIn = async (email: string, password: string) => {
+    await signInWithEmailAndPassword(auth, email, password)
+  }
+
+  if (!authReady) return <div className="min-h-screen grid place-items-center text-sm text-ink/60">Checking sign-in…</div>
+  if (!currentUser) return <SignInPage onSignIn={handleSignIn} error={authError} />
+
   const tabs = [
-    ['dash', 'Dashboard'],
-    ['scan', 'Scan medicine'],
-    ['registry', 'Registry']
+    ['dash', 'Dashboard'] as const,
+    ...(currentUser.role === 'field_officer' ? [['scan', 'Scan medicine'] as const] : []),
+    ...(currentUser.role === 'ict_staff' ? [['registry', 'Registry'] as const] : [])
   ] as const
 
   return (
@@ -92,12 +126,24 @@ export default function App() {
           <div className="mt-3 flex items-center gap-2">
             <span
               className={`h-2.5 w-2.5 rounded-full ${
-                apiOnline ? 'bg-emerald-400' : apiOnline === false ? 'bg-rose-500' : 'bg-amber-400'
+                health?.status === 'online' ? 'bg-emerald-400' : health?.status === 'offline' ? 'bg-rose-500' : 'bg-amber-400'
               }`}
             />
             <span className="text-xs text-white/70">
-              {apiOnline ? 'Backend Gateway: Online' : 'Backend Gateway: Offline'}
+              {health?.status === 'online' ? 'Backend Gateway: Online' : health?.status === 'offline' ? 'Backend Gateway: Offline' : 'Checking backend…'}
             </span>
+          </div>
+          {health?.status === 'online' && (
+            <div className="mt-1 text-xs text-white/70" title={health.firebase?.error || (health.firebase?.authenticated ? 'Authenticated Firebase connection' : health.firebase?.connected ? 'Unauthenticated Firebase REST access' : 'Firebase status was not provided by this backend')}>
+              Firebase RTDB: {health.firebase?.connected ? health.firebase.authenticated ? 'Connected' : 'Connected · public rules' : 'Not connected'}
+            </div>
+          )}
+          <div className="mt-3 border-t border-white/10 pt-3">
+            <div className="text-xs font-medium">{currentUser.roleLabel}</div>
+            <div className="text-xs text-white/60 truncate">{currentUser.email}</div>
+            <button onClick={() => void signOut(auth)} className="mt-2 text-xs text-white/70 underline hover:text-white">
+              Sign out
+            </button>
           </div>
         </div>
         <nav className="flex md:flex-col gap-1 w-full">
@@ -127,9 +173,19 @@ export default function App() {
             </button>
           </div>
         )}
+        {health?.status === 'online' && health.firebase && !health.firebase.connected && (
+          <div className="mb-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
+            Backend is online, but Firebase Realtime Database is not connected. {health.firebase.error || 'Configure Firebase service-account credentials or database access rules in the backend.'}
+          </div>
+        )}
+        {health?.status === 'online' && health.firebase?.connected && !health.firebase.authenticated && (
+          <div className="mb-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
+            Firebase is connected through unauthenticated REST access. The current RTDB rules allow public reads and writes; configure a backend service-account key and restrict database rules before using real medicine records.
+          </div>
+        )}
 
-        {tab === 'dash' && <Dashboard scans={scans} onStatusChange={refreshData} />}
-        {tab === 'scan' && (
+        {tab === 'dash' && <Dashboard scans={scans} role={currentUser.role} onStatusChange={refreshData} />}
+        {tab === 'scan' && currentUser.role === 'field_officer' && (
           <ScanPage
             onDone={() => {
               refreshData()
@@ -137,7 +193,7 @@ export default function App() {
             }}
           />
         )}
-        {tab === 'registry' && <Registry products={products} onChange={refreshData} />}
+        {tab === 'registry' && currentUser.role === 'ict_staff' && <Registry products={products} onChange={refreshData} />}
       </main>
     </div>
   )
@@ -145,10 +201,12 @@ export default function App() {
 
 function Dashboard({
   scans,
+  role,
   onStatusChange
 }: {
   scans: Scan[]
-  onStatusChange: () => void
+  role: CurrentUser['role']
+  onStatusChange: () => Promise<void>
 }) {
   const [filter, setFilter] = useState<'all' | 'flagged' | 'genuine' | 'open'>('flagged')
   const [catFilter, setCatFilter] = useState<string>('All')
@@ -198,10 +256,19 @@ function Dashboard({
 
   const setCase = async (id: string, caseStatus: CaseStatus) => {
     try {
-      await updateScanCase(id, caseStatus)
+      await updateScanCase(id, { caseStatus })
       onStatusChange()
     } catch (e: any) {
       alert(e?.message || 'Could not update status')
+    }
+  }
+
+  const setPriority = async (id: string, priority: string) => {
+    try {
+      await updateScanCase(id, { priority })
+      await onStatusChange()
+    } catch (e: any) {
+      alert(e?.message || 'Could not update case priority')
     }
   }
 
@@ -388,7 +455,7 @@ function Dashboard({
                   </td>
                   <td className="px-4 py-3">{s.location}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    {s.caseStatus === 'open' ? (
+                    {s.caseStatus === 'open' && role === 'field_officer' ? (
                       <div className="flex gap-1.5">
                         <button
                           onClick={() => setCase(s.id, 'confirmed')}
@@ -411,6 +478,16 @@ function Dashboard({
                           ? '⚠️ Confirmed Counterfeit'
                           : '✅ Cleared'}
                       </span>
+                    )}
+                    {role === 'manager' && s.caseStatus !== 'closed' && (
+                      <select
+                        aria-label={`Priority for ${s.barcode}`}
+                        className="mt-2 block rounded border border-ink/20 bg-white px-2 py-1 text-xs"
+                        value={s.priority || 'normal'}
+                        onChange={(event) => void setPriority(s.id, event.target.value)}
+                      >
+                        {['low', 'normal', 'high', 'urgent'].map((priority) => <option key={priority} value={priority}>{priority}</option>)}
+                      </select>
                     )}
                   </td>
                 </tr>
@@ -515,7 +592,12 @@ function ScanPage({ onDone }: { onDone: () => void }) {
   const [similarity, setSimilarity] = useState(95)
   const [location, setLocation] = useState('Kigali')
   const [showScanner, setShowScanner] = useState(false)
-  const [result, setResult] = useState<{ name: string; cat: Category } | null>(null)
+  const [result, setResult] = useState<{
+    barcode: string
+    name: string
+    cat: Category
+    registered: boolean
+  } | null>(null)
   const [busy, setBusy] = useState(false)
   const ref = useRef<HTMLInputElement>(null)
 
@@ -536,7 +618,12 @@ function ScanPage({ onDone }: { onDone: () => void }) {
         location,
         device: 'web-browser'
       })
-      setResult({ name: rec.productName, cat: rec.category })
+      setResult({
+        barcode: rec.barcode || code,
+        name: rec.productName,
+        cat: rec.category,
+        registered: rec.codeMatch !== 'not_found'
+      })
       setBarcode('')
     } catch (e: any) {
       alert(e?.message || 'Verification submission failed')
@@ -559,7 +646,12 @@ function ScanPage({ onDone }: { onDone: () => void }) {
         location,
         device: 'camera-scanner'
       })
-      setResult({ name: rec.productName, cat: rec.category })
+      setResult({
+        barcode: rec.barcode || trimmed,
+        name: rec.productName,
+        cat: rec.category,
+        registered: rec.codeMatch !== 'not_found'
+      })
       setBarcode('')
     } catch (e: any) {
       alert(e?.message || 'Verification submission failed')
@@ -574,7 +666,12 @@ function ScanPage({ onDone }: { onDone: () => void }) {
     try {
       const res = await submitImageScan(imageDataBase64, similarity, location)
       if (res.found && res.record) {
-        setResult({ name: res.record.productName, cat: res.record.category })
+        setResult({
+          barcode: res.barcode || res.record.barcode,
+          name: res.record.productName,
+          cat: res.record.category,
+          registered: res.record.codeMatch !== 'not_found'
+        })
       } else {
         alert(res.error || 'No barcode detected in the photo. Please align closer and try again.')
         setShowScanner(true)
@@ -693,6 +790,15 @@ function ScanPage({ onDone }: { onDone: () => void }) {
             <span className="text-xs font-mono text-ink/50">Synced to LCD 📟</span>
           </div>
           <div className="text-xl font-bold text-ink mt-1">{result.name}</div>
+          <div className="mt-2 flex items-center gap-2 text-sm">
+            <span className="text-ink/60">Barcode read:</span>
+            <span className="font-mono font-semibold text-ink">{result.barcode}</span>
+          </div>
+          <p className={`mt-2 text-sm ${result.registered ? 'text-genuine' : 'text-alert'}`}>
+            {result.registered
+              ? 'This barcode matched a product in the registry.'
+              : 'Barcode scanned successfully, but it is not in the product registry. Add this barcode and medicine details in the Registry tab.'}
+          </p>
           <div className="my-2.5">
             <Badge c={result.cat} />
           </div>
@@ -716,7 +822,7 @@ function Registry({
   onChange
 }: {
   products: (Product & { id: string })[]
-  onChange: () => void
+  onChange: () => Promise<void>
 }) {
   const [f, setF] = useState({
     id: '',
@@ -727,11 +833,16 @@ function Registry({
     expiry: ''
   })
   const [busy, setBusy] = useState(false)
+  const [submitMessage, setSubmitMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!f.id || !f.name) return
+    if (!f.id.trim() || !f.name.trim()) {
+      setSubmitMessage({ kind: 'error', text: 'Barcode and product name are required.' })
+      return
+    }
     setBusy(true)
+    setSubmitMessage(null)
     try {
       await addProduct({
         id: f.id.trim(),
@@ -741,10 +852,11 @@ function Registry({
         batch: f.batch || 'B-01',
         expiry: f.expiry || '2028-12-31'
       })
+      await onChange()
       setF({ id: '', name: '', category: 'Antimalarial', manufacturer: '', batch: '', expiry: '' })
-      onChange()
+      setSubmitMessage({ kind: 'success', text: 'Product added to the official registry.' })
     } catch (err: any) {
-      alert(err?.message || 'Could not add product')
+      setSubmitMessage({ kind: 'error', text: err?.message || 'Could not add product.' })
     } finally {
       setBusy(false)
     }
@@ -866,12 +978,18 @@ function Registry({
           onChange={(e) => setF({ ...f, expiry: e.target.value })}
         />
         <button
+          type="submit"
           disabled={busy}
           className="rounded-lg bg-teal text-white py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 sm:col-span-3"
         >
           {busy ? 'Adding...' : 'Add to Official Registry'}
         </button>
       </form>
+      {submitMessage && (
+        <p role="status" className={`-mt-4 mb-6 text-sm ${submitMessage.kind === 'success' ? 'text-genuine' : 'text-alert'}`}>
+          {submitMessage.text}
+        </p>
+      )}
 
       <div className="rounded-xl bg-white border border-ink/10 shadow-sm overflow-hidden">
         {/* Registry Filter Bar */}
@@ -987,5 +1105,83 @@ function Registry({
         />
       )}
     </div>
+  )
+}
+
+function SignInPage({ onSignIn, error }: { onSignIn: (email: string, password: string) => Promise<void>; error: string }) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [formError, setFormError] = useState('')
+  const [resetMessage, setResetMessage] = useState('')
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setBusy(true)
+    setFormError('')
+    setResetMessage('')
+    try {
+      await onSignIn(email.trim(), password)
+    } catch (err: any) {
+      const code = err?.code
+      setFormError(code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found'
+        ? 'Email or password was not accepted. Make sure this account was created in Firebase project medver-62f1f, then check the email and password or send a password reset email.'
+        : code === 'auth/operation-not-allowed'
+          ? 'Email/password sign-in is disabled. Enable the Email/Password provider in Firebase Console > Authentication > Sign-in method.'
+          : code === 'auth/too-many-requests'
+            ? 'Too many failed attempts. Wait a little, then try again or request a password reset.'
+            : err?.message || 'Sign-in failed. Check your credentials and try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handlePasswordReset = async () => {
+    if (!email.trim()) {
+      setFormError('Enter your account email first to request a password reset.')
+      return
+    }
+    setBusy(true)
+    setFormError('')
+    setResetMessage('')
+    try {
+      await sendPasswordResetEmail(auth, email.trim())
+      setResetMessage('If this email has an account in medver-62f1f, Firebase will send a password reset link.')
+    } catch (err: any) {
+      setFormError(err?.message || 'Could not send the password reset email.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <main className="min-h-screen grid place-items-center bg-slate-50 px-4 py-10 text-ink">
+      <section className="w-full max-w-md border border-ink/10 bg-white p-7 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-wider text-teal">Rwanda FDA workspace</p>
+        <h1 className="mt-2 text-2xl font-bold">MedVerify sign in</h1>
+        <p className="mt-2 text-sm text-ink/60">Use your authorized organization account. New accounts are assigned roles by the system administrator.</p>
+        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <label className="block text-sm font-medium">
+            Email
+            <input autoComplete="username" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 w-full rounded border border-ink/20 px-3 py-2" />
+          </label>
+          <label className="block text-sm font-medium">
+            Password
+            <input autoComplete="current-password" type="password" required value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1 w-full rounded border border-ink/20 px-3 py-2" />
+          </label>
+          {(formError || error) && <p role="alert" className="text-sm text-alert">{formError || error}</p>}
+          {resetMessage && <p role="status" className="text-sm text-genuine">{resetMessage}</p>}
+          <button type="button" disabled={busy || !email.trim()} onClick={() => void handlePasswordReset()} className="text-sm text-teal underline disabled:opacity-50">
+            Send password reset email
+          </button>
+          {error && auth.currentUser && (
+            <button type="button" onClick={() => void signOut(auth)} className="text-sm text-teal underline">Sign out of this account</button>
+          )}
+          <button disabled={busy} className="w-full rounded bg-teal py-2.5 font-medium text-white disabled:opacity-50">
+            {busy ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+      </section>
+    </main>
   )
 }

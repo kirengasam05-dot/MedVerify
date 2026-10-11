@@ -1,5 +1,21 @@
 // MedVerify API Client for Python Gateway
+import { auth } from './firebase'
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+
+async function authHeaders(): Promise<HeadersInit> {
+  const user = auth.currentUser
+  if (!user) throw new Error('Sign in to continue.')
+  return { Authorization: `Bearer ${await user.getIdToken()}` }
+}
+
+export type UserRole = 'field_officer' | 'ict_staff' | 'manager'
+export interface CurrentUser {
+  uid: string
+  email: string
+  role: UserRole
+  roleLabel: string
+}
 
 export interface SubmitScanPayload {
   barcode: string
@@ -8,19 +24,35 @@ export interface SubmitScanPayload {
   device?: string
 }
 
-export async function checkHealth() {
+export interface HealthStatus {
+  status: 'online' | 'offline'
+  firebase?: { connected: boolean; mode: string; authenticated?: boolean; error?: string | null }
+}
+
+export async function checkHealth(): Promise<HealthStatus> {
   try {
     const res = await fetch(`${API_URL}/health`)
-    return res.ok
+    if (!res.ok) return { status: 'offline' }
+    const data = await res.json()
+    return { status: 'online', firebase: data.firebase }
   } catch {
-    return false
+    return { status: 'offline' }
   }
+}
+
+export async function fetchCurrentUser(): Promise<CurrentUser> {
+  const res = await fetch(`${API_URL}/me`, { headers: await authHeaders() })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Could not verify account role' }))
+    throw new Error(err.error || `HTTP ${res.status}`)
+  }
+  return res.json()
 }
 
 export async function submitScan(data: SubmitScanPayload) {
   const res = await fetch(`${API_URL}/scan`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...await authHeaders() },
     body: JSON.stringify(data)
   })
   if (!res.ok) {
@@ -33,7 +65,7 @@ export async function submitScan(data: SubmitScanPayload) {
 export async function submitImageScan(imageDataBase64: string, similarity: number = 95, location: string = 'Kigali') {
   const res = await fetch(`${API_URL}/scan-image`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...await authHeaders() },
     body: JSON.stringify({
       image: imageDataBase64,
       similarity,
@@ -48,23 +80,26 @@ export async function submitImageScan(imageDataBase64: string, similarity: numbe
 }
 
 export async function fetchScans() {
-  const res = await fetch(`${API_URL}/scans`)
+  const res = await fetch(`${API_URL}/scans`, { headers: await authHeaders() })
   if (!res.ok) throw new Error(`Failed to fetch scans (HTTP ${res.status})`)
   return res.json()
 }
 
-export async function updateScanCase(id: string, caseStatus: string) {
+export async function updateScanCase(id: string, changes: { caseStatus?: string; priority?: string }) {
   const res = await fetch(`${API_URL}/scans/${encodeURIComponent(id)}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ caseStatus })
+    headers: { 'Content-Type': 'application/json', ...await authHeaders() },
+    body: JSON.stringify(changes)
   })
-  if (!res.ok) throw new Error(`Failed to update case (HTTP ${res.status})`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to update case' }))
+    throw new Error(err.error || `HTTP ${res.status}`)
+  }
   return res.json()
 }
 
 export async function fetchProducts() {
-  const res = await fetch(`${API_URL}/products`)
+  const res = await fetch(`${API_URL}/products`, { headers: await authHeaders() })
   if (!res.ok) throw new Error(`Failed to fetch products (HTTP ${res.status})`)
   return res.json()
 }
@@ -79,7 +114,7 @@ export async function addProduct(data: {
 }) {
   const res = await fetch(`${API_URL}/products`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...await authHeaders() },
     body: JSON.stringify(data)
   })
   if (!res.ok) {
@@ -91,7 +126,8 @@ export async function addProduct(data: {
 
 export async function toggleProductStatus(id: string) {
   const res = await fetch(`${API_URL}/products/${encodeURIComponent(id)}`, {
-    method: 'PATCH'
+    method: 'PATCH',
+    headers: await authHeaders()
   })
   if (!res.ok) throw new Error(`Failed to toggle product (HTTP ${res.status})`)
   return res.json()
@@ -99,7 +135,8 @@ export async function toggleProductStatus(id: string) {
 
 export async function seedDemoData() {
   const res = await fetch(`${API_URL}/seed`, {
-    method: 'POST'
+    method: 'POST',
+    headers: await authHeaders()
   })
   if (!res.ok) throw new Error(`Failed to seed demo data (HTTP ${res.status})`)
   return res.json()

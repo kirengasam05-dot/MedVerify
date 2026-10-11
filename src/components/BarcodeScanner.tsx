@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Html5Qrcode } from 'html5-qrcode'
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 
 interface BarcodeScannerProps {
   onDetected: (code: string) => void
@@ -11,6 +11,7 @@ export default function BarcodeScanner({ onDetected, onImageCaptured, onClose }:
   const elementId = 'html5-qrcode-scanner-view'
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const startingRef = useRef(false)
   const [running, setRunning] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -33,6 +34,8 @@ export default function BarcodeScanner({ onDetected, onImageCaptured, onClose }:
   }
 
   const startCamera = async () => {
+    if (startingRef.current || scannerRef.current?.isScanning) return
+    startingRef.current = true
     setErrorMsg('')
     try {
       if (scannerRef.current) {
@@ -41,14 +44,36 @@ export default function BarcodeScanner({ onDetected, onImageCaptured, onClose }:
         } catch {}
       }
 
-      const scanner = new Html5Qrcode(elementId)
+      const scanner = new Html5Qrcode(elementId, {
+        verbose: false,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.CODE_93,
+          Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.DATA_MATRIX,
+          Html5QrcodeSupportedFormats.CODABAR,
+          Html5QrcodeSupportedFormats.PDF_417,
+          Html5QrcodeSupportedFormats.AZTEC
+        ],
+        useBarCodeDetectorIfSupported: true
+      })
       scannerRef.current = scanner
 
       await scanner.start(
         { facingMode: 'environment' },
         {
-          fps: 15,
-          aspectRatio: undefined
+          fps: 12,
+          videoConstraints: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
           // Omit qrbox so html5-qrcode scans the entire frame with zero double-box clipping
         },
         (decodedText) => {
@@ -63,8 +88,23 @@ export default function BarcodeScanner({ onDetected, onImageCaptured, onClose }:
       setRunning(true)
     } catch (err: any) {
       console.warn('Camera error:', err)
-      setErrorMsg(err?.message || 'Could not access camera. Check device permissions.')
+      const message = String(err?.message || '')
+      const errorName = String(err?.name || '')
+      const details = `${errorName} ${message}`.toLowerCase()
+      setErrorMsg(details.includes('notreadable') || details.includes('device in use')
+        ? 'The camera is already in use by another browser tab or app. Close other camera/scanner apps and retry.'
+        : details.includes('notallowed') || details.includes('permission') || details.includes('denied')
+          ? 'Camera permission is blocked. Allow camera access for localhost in browser site settings and Windows Privacy & security > Camera.'
+          : details.includes('notfound') || details.includes('no camera')
+            ? 'No camera was found. Connect or enable a webcam, then retry.'
+            : details.includes('overconstrained')
+              ? 'The camera does not support the requested settings. Retry with another camera or reduce camera resolution.'
+              : message
+                ? `Could not start camera (${errorName || 'camera error'}): ${message}`
+                : 'Could not access the camera. Check the webcam connection and permissions, then retry.')
       setRunning(false)
+    } finally {
+      startingRef.current = false
     }
   }
 
@@ -127,8 +167,9 @@ export default function BarcodeScanner({ onDetected, onImageCaptured, onClose }:
   }
 
   useEffect(() => {
-    startCamera()
+    const startTimer = window.setTimeout(() => void startCamera(), 0)
     return () => {
+      window.clearTimeout(startTimer)
       stopCamera()
     }
   }, [])
