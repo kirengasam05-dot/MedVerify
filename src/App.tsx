@@ -126,9 +126,9 @@ export default function App() {
       const status = await checkHealth()
       setHealth(status)
       if (status.status === 'online') {
-        const [scansData, prodsData] = await Promise.all([fetchScans(), fetchProducts()])
-        setScans(scansData)
-        setProducts(prodsData)
+        const [scansRes, prodsRes] = await Promise.allSettled([fetchScans(), fetchProducts()])
+        if (scansRes.status === 'fulfilled') setScans(scansRes.value)
+        if (prodsRes.status === 'fulfilled') setProducts(prodsRes.value)
         setError('')
       } else {
         setError('Backend API is offline. Start it in MedVer_backend: python main.py')
@@ -148,17 +148,16 @@ export default function App() {
         return
       }
       try {
-        const profile = await fetchCurrentUser()
+        const token = await user.getIdToken()
+        const profile = await fetchCurrentUser(token)
         setCurrentUser(profile)
         setAuthError('')
       } catch (err: any) {
-        console.warn('[Auth] Backend rejected session verification:', err)
-        setCurrentUser(null)
+        console.warn('[Auth] Backend session verification notice:', err)
         setAuthError(
           err?.message ||
-            'Your session is not recognized or authorized by the MedVerify backend. Please sign in.'
+            'Your session could not be verified by the MedVerify backend.'
         )
-        void signOut(auth)
       } finally {
         setAuthReady(true)
       }
@@ -168,24 +167,16 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return
     void refreshData()
-    const timer = window.setInterval(() => void refreshData(), 3000)
+    const timer = window.setInterval(() => void refreshData(), 4000)
     return () => window.clearInterval(timer)
   }, [currentUser])
 
   const handleSignIn = async (email: string, password: string) => {
     setAuthError('')
-    await signInWithEmailAndPassword(auth, email, password)
-    try {
-      const profile = await fetchCurrentUser()
-      setCurrentUser(profile)
-    } catch (err: any) {
-      void signOut(auth)
-      setCurrentUser(null)
-      throw new Error(
-        err?.message ||
-          'Authenticated with Firebase, but your account has no assigned MedVerify role on the backend.'
-      )
-    }
+    const cred = await signInWithEmailAndPassword(auth, email.trim(), password)
+    const token = await cred.user.getIdToken()
+    const profile = await fetchCurrentUser(token)
+    setCurrentUser(profile)
   }
 
   // --- AUTH GUARD & SIGN IN PAGE ---

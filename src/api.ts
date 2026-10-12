@@ -3,32 +3,14 @@ import { auth } from './firebase'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
-async function getAuthToken(): Promise<string | null> {
-  if (auth.currentUser) {
-    try {
-      return await auth.currentUser.getIdToken()
-    } catch {
-      return null
-    }
+export async function getAuthToken(): Promise<string | null> {
+  const user = auth.currentUser
+  if (!user) return null
+  try {
+    return await user.getIdToken()
+  } catch {
+    return null
   }
-  return new Promise((resolve) => {
-    const unsub = auth.onAuthStateChanged(async (u) => {
-      unsub()
-      if (u) {
-        try {
-          resolve(await u.getIdToken())
-        } catch {
-          resolve(null)
-        }
-      } else {
-        resolve(null)
-      }
-    })
-    setTimeout(() => {
-      unsub()
-      resolve(null)
-    }, 1500)
-  })
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -72,28 +54,19 @@ export async function checkHealth(): Promise<HealthStatus> {
   }
 }
 
-export async function fetchCurrentUser(): Promise<CurrentUser> {
-  const headers = await authHeaders()
-  if (!headers.Authorization) {
+export async function fetchCurrentUser(providedToken?: string): Promise<CurrentUser> {
+  const token = providedToken || (await getAuthToken())
+  if (!token) {
     throw new Error('Sign in is required.')
   }
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 4000)
-  try {
-    const res = await fetch(`${API_URL}/me`, { headers, signal: controller.signal })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Could not verify account role' }))
-      throw new Error(err.error || `HTTP ${res.status}`)
-    }
-    return res.json()
-  } catch (err: any) {
-    if (err.name === 'AbortError') {
-      throw new Error('Connection to MedVerify gateway timed out. Please sign in again.')
-    }
-    throw err
-  } finally {
-    clearTimeout(timeoutId)
+  const res = await fetch(`${API_URL}/me`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Could not verify account role' }))
+    throw new Error(err.error || `HTTP ${res.status}`)
   }
+  return res.json()
 }
 
 export async function submitScan(data: SubmitScanPayload) {
