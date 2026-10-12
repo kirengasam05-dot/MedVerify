@@ -217,40 +217,6 @@ export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, error }) => {
             {/* ── Form ── */}
             <form onSubmit={handleSubmit} className="space-y-3.5">
 
-              {/* Quick Demo Credentials (RBAC Roles) */}
-              <div>
-                <div className="flex items-center justify-between text-[11px] font-medium text-slate-500 mb-1.5">
-                  <span>Select demo account</span>
-                  <span className="text-[9.5px] text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded font-mono border border-teal-200/60">RBAC</span>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {[
-                    { label: 'Field Officer', em: 'officer@example.gov.rw', pw: 'officer123' },
-                    { label: 'ICT Staff', em: 'ict@example.gov.rw', pw: 'ict123' },
-                    { label: 'Manager', em: 'manager@example.gov.rw', pw: 'manager123' }
-                  ].map((p) => {
-                    const isSelected = email === p.em
-                    return (
-                      <button
-                        key={p.label}
-                        type="button"
-                        onClick={() => {
-                          setEmail(p.em)
-                          setPassword(p.pw)
-                        }}
-                        className={`px-2 py-1.5 rounded-lg text-center text-[10.5px] font-medium border transition-all ${
-                          isSelected
-                            ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                            : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
-                        }`}
-                      >
-                        {p.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
               {/* Email */}
               <div>
                 <label className="block text-[12px] font-medium text-slate-700 mb-1">

@@ -268,8 +268,8 @@ export const CasesPage: React.FC<CasesPageProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredCases.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50/70 transition">
+                filteredCases.map((c, idx) => (
+                  <tr key={c.id ? `${c.id}-${idx}` : `case-${idx}`} className="hover:bg-slate-50/70 transition">
                     
                     {/* Date */}
                     <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-[11px]">

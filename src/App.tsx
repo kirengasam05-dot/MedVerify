@@ -199,14 +199,50 @@ export default function App() {
   // --- AUTH GUARD & SIGN IN PAGE ---
   if (!authReady) {
     return (
-      <div className="min-h-screen grid place-items-center bg-slate-50">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-teal-600 flex items-center justify-center text-white font-bold text-base shadow-lg shadow-teal-600/20 animate-pulse">
-            MV
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0B0B0F] text-white p-4 relative overflow-hidden select-none">
+        {/* Ambient glows matching brand palette */}
+        <div className="absolute top-1/4 -left-20 w-80 h-80 rounded-full bg-teal/15 blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-1/4 -right-20 w-80 h-80 rounded-full bg-emerald-500/10 blur-[120px] pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col items-center max-w-sm text-center">
+          {/* Logo badge with orbiting spinner ring */}
+          <div className="relative mb-6">
+            <div
+              className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-2xl"
+              style={{ backgroundColor: '#0F5C6E' }}
+            >
+              MV
+            </div>
+            {/* Spinning orbital border */}
+            <div className="absolute -inset-2 rounded-3xl border-2 border-teal/20 border-t-teal animate-spin" />
           </div>
-          <div className="text-xs font-semibold text-slate-500 font-mono">
-            Verifying Rwanda FDA credentials…
+
+          <h1 className="text-xl font-bold text-white tracking-tight">
+            MedVerify
+          </h1>
+          <p className="text-xs text-slate-400 font-medium mt-1">
+            Rwanda FDA · National Medicine Verification
+          </p>
+
+          {/* Minimalist animated progress bar */}
+          <div className="w-48 mt-6">
+            <div className="h-1 w-full bg-slate-800/80 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full animate-pulse w-3/4"
+                style={{ backgroundColor: '#0F5C6E' }}
+              />
+            </div>
           </div>
+
+          <div className="flex items-center gap-2 mt-4 text-[11px] font-mono text-slate-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+            <span>Verifying Rwanda FDA credentials…</span>
+          </div>
+        </div>
+
+        {/* Security badge at bottom */}
+        <div className="absolute bottom-6 text-[10px] font-mono tracking-wider text-slate-600 uppercase">
+          Rwanda FDA · Post-Market Surveillance System
         </div>
       </div>
     )
@@ -578,8 +614,8 @@ function Dashboard({
                   </td>
                 </tr>
               )}
-              {paginatedRows.map((s) => (
-                <tr key={s.id} className="border-t border-ink/5 hover:bg-slate-50/50 transition">
+              {paginatedRows.map((s, idx) => (
+                <tr key={s.id ? `${s.id}-${idx}` : `scan-${idx}`} className="border-t border-ink/5 hover:bg-slate-50/50 transition">
                   <td className="px-4 py-3 whitespace-nowrap text-xs text-ink/60">
                     {new Date(s.createdAt).toLocaleString()}
                   </td>

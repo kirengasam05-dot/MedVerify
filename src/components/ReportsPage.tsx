@@ -58,12 +58,12 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ scans, currentUser }) 
       `"${s.id}"`,
       `"${new Date(s.createdAt).toISOString()}"`,
       `"${s.barcode}"`,
-      `"${s.productName.replace(/"/g, '""')}"`,
+      `"${(s.productName || 'Unknown').replace(/"/g, '""')}"`,
       s.similarity ?? 0,
-      `"${s.codeMatch}"`,
-      `"${s.category}"`,
-      `"${s.location}"`,
-      `"${s.caseStatus}"`,
+      `"${s.codeMatch || 'valid_unused'}"`,
+      `"${s.category || 'Genuine'}"`,
+      `"${s.location || 'Kigali'}"`,
+      `"${s.caseStatus || 'open'}"`,
       `"${s.priority || 'normal'}"`,
       `"${s.device || 'edge-scanner'}"`,
     ]);
@@ -281,7 +281,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ scans, currentUser }) 
                     </td>
                     <td className="px-4 py-2.5 text-slate-600">{s.location}</td>
                     <td className="px-4 py-2.5 font-medium capitalize text-slate-700 text-[11.5px]">
-                      {s.caseStatus.replace('_', ' ')}
+                      {(s.caseStatus || 'open').replace('_', ' ')}
                     </td>
                     <td className="px-4 py-2.5">
                       <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${

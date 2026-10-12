@@ -227,27 +227,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <X className="w-4 h-4" />
           </button>
         </div>
-
-        {/* ── ROLE BADGE BANNER (Target Population Scope) ── */}
-        <div className="mx-3 mt-3 px-3 py-2 rounded-lg bg-slate-900/90 border border-slate-800/80 shrink-0">
-          <div className="flex items-center justify-between gap-1 mb-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-teal-400">
-              {userRole === 'field_officer'
-                ? 'Field Officer'
-                : userRole === 'ict_staff'
-                ? 'ICT Staff'
-                : 'Manager / Admin'}
-            </span>
-            <span className="text-[9px] px-1.5 py-0.5 rounded font-mono bg-teal-500/10 text-teal-300 border border-teal-500/20">
-              RBAC Active
-            </span>
-          </div>
-          <p className="text-[9.5px] text-slate-400 leading-snug">
-            {userRole === 'field_officer' && 'Scan, review alerts, conduct field investigation'}
-            {userRole === 'ict_staff' && 'Maintain the product registry and integration'}
-            {userRole === 'manager' && 'Set priorities, oversee cases, use reports'}
-          </p>
-        </div>
+       
 
         {/* ── NAVIGATION (RBAC filtered) ── */}
         <div className="flex-1 flex flex-col px-3 py-3 gap-1 overflow-y-auto">

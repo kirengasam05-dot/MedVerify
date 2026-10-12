@@ -46,12 +46,27 @@ export async function checkHealth(): Promise<HealthStatus> {
 }
 
 export async function fetchCurrentUser(): Promise<CurrentUser> {
-  const res = await fetch(`${API_URL}/me`, { headers: await authHeaders() })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Could not verify account role' }))
-    throw new Error(err.error || `HTTP ${res.status}`)
+  const headers = await authHeaders()
+  if (!headers.Authorization) {
+    throw new Error('Sign in is required.')
   }
-  return res.json()
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 4000)
+  try {
+    const res = await fetch(`${API_URL}/me`, { headers, signal: controller.signal })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Could not verify account role' }))
+      throw new Error(err.error || `HTTP ${res.status}`)
+    }
+    return res.json()
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error('Connection to MedVerify gateway timed out. Please sign in again.')
+    }
+    throw err
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 export async function submitScan(data: SubmitScanPayload) {
