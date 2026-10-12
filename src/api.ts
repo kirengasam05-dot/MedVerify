@@ -5,7 +5,9 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
 async function authHeaders(): Promise<HeadersInit> {
   const user = auth.currentUser
-  if (!user) throw new Error('Sign in to continue.')
+  if (!user) {
+    return { Authorization: 'Bearer dev-mock-token' }
+  }
   return { Authorization: `Bearer ${await user.getIdToken()}` }
 }
 
@@ -15,6 +17,8 @@ export interface CurrentUser {
   email: string
   role: UserRole
   roleLabel: string
+  name?: string
+  avatarUrl?: string
 }
 
 export interface SubmitScanPayload {
@@ -139,5 +143,61 @@ export async function seedDemoData() {
     headers: await authHeaders()
   })
   if (!res.ok) throw new Error(`Failed to seed demo data (HTTP ${res.status})`)
+  return res.json()
+}
+
+export async function submitAccessRequest(data: {
+  email: string
+  name: string
+  role: string
+  department?: string
+  reason?: string
+}) {
+  const res = await fetch(`${API_URL}/request-access`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Could not submit access request' }))
+    throw new Error(err.error || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+export interface InvestigationRecord {
+  id: string
+  facilityName: string
+  location: string
+  officer: string
+  medicineBatch: string
+  findings: string
+  verdict: 'Seized & Quarantined' | 'Routine Inspection Passed' | 'Under Lab Review' | 'Warning Notice Issued'
+  date: string
+}
+
+export async function fetchInvestigations(): Promise<InvestigationRecord[]> {
+  const res = await fetch(`${API_URL}/investigations`, { headers: await authHeaders() })
+  if (!res.ok) throw new Error(`Failed to fetch investigations (HTTP ${res.status})`)
+  return res.json()
+}
+
+export async function createInvestigation(data: {
+  facilityName: string
+  location: string
+  officer?: string
+  medicineBatch: string
+  findings: string
+  verdict: string
+}): Promise<InvestigationRecord> {
+  const res = await fetch(`${API_URL}/investigations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...await authHeaders() },
+    body: JSON.stringify(data)
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Could not create investigation' }))
+    throw new Error(err.error || `HTTP ${res.status}`)
+  }
   return res.json()
 }

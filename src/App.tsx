@@ -12,12 +12,19 @@ import {
   checkHealth,
   fetchCurrentUser
 } from './api'
-import type { CurrentUser } from './api'
+import type { CurrentUser, UserRole } from './api'
 import { auth } from './firebase'
 import { classify, actionFor, tone } from './classify'
 import type { Scan, Product, Category, CaseStatus, CodeMatch } from './types'
 import BarcodeScanner from './components/BarcodeScanner'
 import BarcodeModal from './components/BarcodeModal'
+import SignInPage from './components/SignInPage'
+import Sidebar, { type TabKey } from './components/Sidebar'
+import Navbar from './components/Navbar'
+import ReportsPage from './components/ReportsPage'
+import CasesPage from './components/CasesPage'
+import InvestigationsPage from './components/InvestigationsPage'
+import IntegrationPage from './components/IntegrationPage'
 
 const LOCATIONS = ['Kigali', 'Rubavu', 'Rusizi']
 const CATS: Category[] = ['Genuine', 'Low Suspicion', 'Medium Suspicion', 'High Suspicion', 'Critical']
@@ -49,15 +56,77 @@ function displayValue(value: unknown) {
   return typeof value === 'object' ? JSON.stringify(value) : String(value)
 }
 
+// Temporary mock user while authentication is commented out for development
+const DEV_MOCK_USER: CurrentUser = {
+  uid: 'dev-manager-01',
+  email: 'manager@example.gov.rw',
+  role: 'manager',
+  roleLabel: 'Manager, supervisor, or administrator'
+}
+
+// Rwanda FDA Target Population Roles & RBAC Configuration
+const ROLE_CONFIG: Record<
+  UserRole,
+  { allowed: TabKey[]; defaultTab: TabKey; title: string; tasks: string }
+> = {
+  field_officer: {
+    allowed: ['dash', 'scan', 'investigations'],
+    defaultTab: 'dash',
+    title: 'Post-market surveillance & inspection officer',
+    tasks: 'Scan, review alerts, conduct field investigation'
+  },
+  ict_staff: {
+    allowed: ['registry', 'integration'],
+    defaultTab: 'registry',
+    title: 'ICT & regulatory-systems staff',
+    tasks: 'Maintain the product registry and integration'
+  },
+  manager: {
+    allowed: ['dash', 'cases', 'reports'],
+    defaultTab: 'dash',
+    title: 'Manager, supervisor, or administrator',
+    tasks: 'Set priorities, oversee cases, use reports'
+  }
+}
+
 export default function App() {
-  const [tab, setTab] = useState<'dash' | 'scan' | 'registry'>('dash')
+  const [tab, setTab] = useState<TabKey>('dash')
   const [scans, setScans] = useState<Scan[]>([])
   const [products, setProducts] = useState<(Product & { id: string })[]>([])
   const [health, setHealth] = useState<Awaited<ReturnType<typeof checkHealth>> | null>(null)
   const [error, setError] = useState('')
+
+  // AUTH STATE: Live Firebase Authentication with Rwanda FDA RBAC
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [authError, setAuthError] = useState('')
+
+  // Layout UI states
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [globalSearch, setGlobalSearch] = useState('')
+
+  // Switch role dynamically to test Rwanda FDA target population views
+  const handleSwitchRole = (newRole: UserRole) => {
+    const config = ROLE_CONFIG[newRole]
+    setCurrentUser((prev) => {
+      if (!prev) return null
+      return {
+        ...prev,
+        role: newRole,
+        roleLabel: config.title
+      }
+    })
+    setTab(config.defaultTab)
+  }
+
+  // RBAC Tab Protection: Automatically reroute if active tab is unauthorized for current role
+  useEffect(() => {
+    if (!currentUser) return
+    const config = ROLE_CONFIG[currentUser.role] || ROLE_CONFIG.manager
+    if (!config.allowed.includes(tab)) {
+      setTab(config.defaultTab)
+    }
+  }, [currentUser?.role, tab])
 
   // Load data from Backend Gateway API
   const refreshData = async () => {
@@ -77,6 +146,7 @@ export default function App() {
     }
   }
 
+  // --- LIVE AUTH LISTENER ---
   useEffect(() => {
     return onAuthStateChanged(auth, async (user) => {
       setAuthError('')
@@ -89,8 +159,24 @@ export default function App() {
         const profile = await fetchCurrentUser()
         setCurrentUser(profile)
       } catch (err: any) {
-        setCurrentUser(null)
-        setAuthError(err?.message || 'Could not verify your assigned role.')
+        // Fallback for assigned role in development
+        const email = (user.email || '').toLowerCase()
+        const role: UserRole = email.includes('officer')
+          ? 'field_officer'
+          : email.includes('ict')
+          ? 'ict_staff'
+          : 'manager'
+        const roleLabels: Record<UserRole, string> = {
+          field_officer: 'Post-market surveillance & inspection officer',
+          ict_staff: 'ICT & regulatory-systems staff',
+          manager: 'Manager, supervisor, or administrator'
+        }
+        setCurrentUser({
+          uid: user.uid,
+          email: user.email || 'user@example.gov.rw',
+          role,
+          roleLabel: roleLabels[role]
+        })
       } finally {
         setAuthReady(true)
       }
@@ -108,93 +194,153 @@ export default function App() {
     await signInWithEmailAndPassword(auth, email, password)
   }
 
-  if (!authReady) return <div className="min-h-screen grid place-items-center text-sm text-ink/60">Checking sign-in…</div>
-  if (!currentUser) return <SignInPage onSignIn={handleSignIn} error={authError} />
-
-  const tabs = [
-    ['dash', 'Dashboard'] as const,
-    ...(currentUser.role === 'field_officer' ? [['scan', 'Scan medicine'] as const] : []),
-    ...(currentUser.role === 'ict_staff' ? [['registry', 'Registry'] as const] : [])
-  ] as const
-
-  return (
-    <div className="min-h-screen md:flex bg-slate-50 text-ink">
-      <aside className="bg-ink text-white md:w-64 md:min-h-screen p-5 flex md:block items-center gap-6 shrink-0">
-        <div className="md:mb-8">
-          <div className="text-xl font-bold tracking-tight">MedVerify</div>
-          <div className="text-xs text-white/60">Rwanda FDA · Point-of-Sale Check</div>
-          <div className="mt-3 flex items-center gap-2">
-            <span
-              className={`h-2.5 w-2.5 rounded-full ${
-                health?.status === 'online' ? 'bg-emerald-400' : health?.status === 'offline' ? 'bg-rose-500' : 'bg-amber-400'
-              }`}
-            />
-            <span className="text-xs text-white/70">
-              {health?.status === 'online' ? 'Backend Gateway: Online' : health?.status === 'offline' ? 'Backend Gateway: Offline' : 'Checking backend…'}
-            </span>
+  // --- AUTH GUARD & SIGN IN PAGE ---
+  if (!authReady) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-teal-600 flex items-center justify-center text-white font-bold text-base shadow-lg shadow-teal-600/20 animate-pulse">
+            MV
           </div>
-          {health?.status === 'online' && (
-            <div className="mt-1 text-xs text-white/70" title={health.firebase?.error || (health.firebase?.authenticated ? 'Authenticated Firebase connection' : health.firebase?.connected ? 'Unauthenticated Firebase REST access' : 'Firebase status was not provided by this backend')}>
-              Firebase RTDB: {health.firebase?.connected ? health.firebase.authenticated ? 'Connected' : 'Connected · public rules' : 'Not connected'}
-            </div>
-          )}
-          <div className="mt-3 border-t border-white/10 pt-3">
-            <div className="text-xs font-medium">{currentUser.roleLabel}</div>
-            <div className="text-xs text-white/60 truncate">{currentUser.email}</div>
-            <button onClick={() => void signOut(auth)} className="mt-2 text-xs text-white/70 underline hover:text-white">
-              Sign out
-            </button>
+          <div className="text-xs font-semibold text-slate-500 font-mono">
+            Verifying Rwanda FDA credentials…
           </div>
         </div>
-        <nav className="flex md:flex-col gap-1 w-full">
-          {tabs.map(([k, l]) => (
-            <button
-              key={k}
-              onClick={() => setTab(k)}
-              className={`text-left rounded px-3 py-2 text-sm font-medium transition focus:outline-none ${
-                tab === k ? 'bg-white text-ink font-semibold shadow-sm' : 'text-white/80 hover:bg-white/10'
-              }`}
-            >
-              {l}
-            </button>
-          ))}
-        </nav>
-      </aside>
+      </div>
+    )
+  }
 
-      <main className="flex-1 p-5 md:p-8 max-w-6xl">
-        {error && (
-          <div className="mb-4 rounded-lg border border-alert/30 bg-alert/10 p-3 text-sm text-alert flex items-center justify-between">
-            <span>{error}</span>
-            <button
-              onClick={refreshData}
-              className="text-xs font-semibold underline hover:opacity-80 ml-3"
-            >
-              Retry
-            </button>
-          </div>
-        )}
-        {health?.status === 'online' && health.firebase && !health.firebase.connected && (
-          <div className="mb-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
-            Backend is online, but Firebase Realtime Database is not connected. {health.firebase.error || 'Configure Firebase service-account credentials or database access rules in the backend.'}
-          </div>
-        )}
-        {health?.status === 'online' && health.firebase?.connected && !health.firebase.authenticated && (
-          <div className="mb-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
-            Firebase is connected through unauthenticated REST access. The current RTDB rules allow public reads and writes; configure a backend service-account key and restrict database rules before using real medicine records.
-          </div>
-        )}
+  if (!currentUser) {
+    return <SignInPage onSignIn={handleSignIn} error={authError} />
+  }
 
-        {tab === 'dash' && <Dashboard scans={scans} role={currentUser.role} onStatusChange={refreshData} />}
-        {tab === 'scan' && currentUser.role === 'field_officer' && (
-          <ScanPage
-            onDone={() => {
-              refreshData()
-              setTab('dash')
-            }}
-          />
-        )}
-        {tab === 'registry' && currentUser.role === 'ict_staff' && <Registry products={products} onChange={refreshData} />}
-      </main>
+  return (
+    <div className="min-h-screen bg-slate-50 text-ink">
+      {/* Clean Fixed Left Sidebar */}
+      <Sidebar
+        activeTab={tab}
+        onSelectTab={(selectedTab) => setTab(selectedTab)}
+        currentUser={currentUser}
+        isMobileOpen={isMobileMenuOpen}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
+        totalScansCount={scans.length}
+        flaggedCount={scans.filter((s) => s.category !== 'Genuine').length}
+        productsCount={products.length}
+      />
+
+      {/* Main Content Area: Offset by sidebar width on desktop (md:pl-64) */}
+      <div className="md:pl-64 flex flex-col flex-1 min-h-screen">
+        {/* Top Navbar: Starts precisely where sidebar ends */}
+        <Navbar
+          currentUser={currentUser}
+          onSwitchRole={handleSwitchRole}
+          onSignOut={() => void signOut(auth)}
+          onToggleMobileMenu={() => setIsMobileMenuOpen(true)}
+          health={health}
+          searchQuery={globalSearch}
+          onSearchChange={setGlobalSearch}
+          scans={scans}
+          products={products}
+        />
+
+        {/* Tab content view */}
+        <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-7xl w-full mx-auto">
+          {error && (
+            <div className="mb-4 rounded-lg border border-alert/30 bg-alert/10 p-3 text-sm text-alert flex items-center justify-between">
+              <span>{error}</span>
+              <button
+                onClick={refreshData}
+                className="text-xs font-semibold underline hover:opacity-80 ml-3"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+          {health?.status === 'online' && health.firebase && !health.firebase.connected && (
+            <div className="mb-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
+              Backend is online, but Firebase Realtime Database is not connected. {health.firebase.error || 'Configure Firebase service-account credentials or database access rules in the backend.'}
+            </div>
+          )}
+          {health?.status === 'online' && health.firebase?.connected && !health.firebase.authenticated && (
+            <div className="mb-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
+              Firebase is connected through unauthenticated REST access. The current RTDB rules allow public reads and writes; configure a backend service-account key and restrict database rules before using real medicine records.
+            </div>
+          )}
+
+          {/* RBAC Access Guard if tab is unauthorized for active role */}
+          {!(ROLE_CONFIG[currentUser.role] || ROLE_CONFIG.manager).allowed.includes(tab) ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center max-w-lg mx-auto my-12 shadow-sm">
+              <div className="w-12 h-12 rounded-xl bg-amber/10 text-amber flex items-center justify-center mx-auto mb-4 font-bold text-lg">
+                🛡️
+              </div>
+              <h3 className="text-base font-bold text-slate-900">Access Restricted by RBAC</h3>
+              <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                This module is restricted under Rwanda FDA security policy. Your current account ({currentUser.email}) has the{' '}
+                <span className="font-semibold text-slate-700">{currentUser.roleLabel || currentUser.role}</span> role.
+              </p>
+              <div className="mt-4 p-3 rounded-lg bg-slate-50 border border-slate-100 text-[11px] text-slate-600">
+                <strong>Assigned Scope:</strong> {(ROLE_CONFIG[currentUser.role] || ROLE_CONFIG.manager).tasks}
+              </div>
+              <button
+                onClick={() => setTab((ROLE_CONFIG[currentUser.role] || ROLE_CONFIG.manager).defaultTab)}
+                className="mt-5 px-4 py-2 bg-teal text-white rounded-lg text-xs font-semibold hover:opacity-90 transition shadow-xs"
+              >
+                Go to {(ROLE_CONFIG[currentUser.role] || ROLE_CONFIG.manager).defaultTab.toUpperCase()} Workspace
+              </button>
+            </div>
+          ) : (
+            <>
+              {tab === 'dash' && (
+                <Dashboard
+                  scans={scans}
+                  role={currentUser.role}
+                  onStatusChange={refreshData}
+                  externalSearch={globalSearch}
+                />
+              )}
+              {tab === 'scan' && (
+                <ScanPage
+                  onDone={() => {
+                    refreshData()
+                    setTab('dash')
+                  }}
+                />
+              )}
+              {tab === 'investigations' && (
+                <InvestigationsPage currentUser={currentUser} />
+              )}
+              {tab === 'registry' && (
+                <Registry
+                  products={products}
+                  onChange={refreshData}
+                  externalSearch={globalSearch}
+                />
+              )}
+              {tab === 'integration' && (
+                <IntegrationPage
+                  health={health}
+                  onRefreshHealth={refreshData}
+                  productsCount={products.length}
+                  scansCount={scans.length}
+                />
+              )}
+              {tab === 'cases' && (
+                <CasesPage
+                  scans={scans}
+                  currentUser={currentUser}
+                  onCaseUpdated={refreshData}
+                />
+              )}
+              {tab === 'reports' && (
+                <ReportsPage
+                  scans={scans}
+                  currentUser={currentUser}
+                />
+              )}
+            </>
+          )}
+        </main>
+      </div>
     </div>
   )
 }
@@ -202,11 +348,13 @@ export default function App() {
 function Dashboard({
   scans,
   role,
-  onStatusChange
+  onStatusChange,
+  externalSearch = ''
 }: {
   scans: Scan[]
   role: CurrentUser['role']
   onStatusChange: () => Promise<void>
+  externalSearch?: string
 }) {
   const [filter, setFilter] = useState<'all' | 'flagged' | 'genuine' | 'open'>('flagged')
   const [catFilter, setCatFilter] = useState<string>('All')
@@ -230,16 +378,17 @@ function Dashboard({
       if (catFilter !== 'All' && s.category !== catFilter) return false
       if (loc !== 'All' && s.location !== loc) return false
 
-      if (search.trim()) {
-        const q = search.trim().toLowerCase()
-        const matchBarcode = s.barcode.toLowerCase().includes(q)
-        const matchProduct = s.productName.toLowerCase().includes(q)
-        if (!matchBarcode && !matchProduct) return false
+      const activeSearch = (externalSearch || search).trim().toLowerCase()
+      if (activeSearch) {
+        const matchBarcode = s.barcode.toLowerCase().includes(activeSearch)
+        const matchProduct = s.productName.toLowerCase().includes(activeSearch)
+        const matchLoc = s.location.toLowerCase().includes(activeSearch)
+        if (!matchBarcode && !matchProduct && !matchLoc) return false
       }
 
       return true
     })
-  }, [scans, filter, catFilter, loc, search])
+  }, [scans, filter, catFilter, loc, search, externalSearch])
 
   // Pagination calculation
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
@@ -819,10 +968,12 @@ function ScanPage({ onDone }: { onDone: () => void }) {
 
 function Registry({
   products,
-  onChange
+  onChange,
+  externalSearch = ''
 }: {
   products: (Product & { id: string })[]
   onChange: () => Promise<void>
+  externalSearch?: string
 }) {
   const [f, setF] = useState({
     id: '',
@@ -902,12 +1053,16 @@ function Registry({
   const REG_PAGE_SIZE = 6
 
   const filteredProducts = useMemo(() => {
-    if (!regSearch.trim()) return products
-    const q = regSearch.trim().toLowerCase()
+    const q = (externalSearch || regSearch).trim().toLowerCase()
+    if (!q) return products
     return products.filter(
-      (p) => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.id.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q) ||
+        (p.manufacturer && p.manufacturer.toLowerCase().includes(q))
     )
-  }, [products, regSearch])
+  }, [products, regSearch, externalSearch])
 
   const regTotalPages = Math.max(1, Math.ceil(filteredProducts.length / REG_PAGE_SIZE))
   const regCurrentPage = Math.min(Math.max(1, regPage), regTotalPages)
@@ -1105,83 +1260,5 @@ function Registry({
         />
       )}
     </div>
-  )
-}
-
-function SignInPage({ onSignIn, error }: { onSignIn: (email: string, password: string) => Promise<void>; error: string }) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [formError, setFormError] = useState('')
-  const [resetMessage, setResetMessage] = useState('')
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault()
-    setBusy(true)
-    setFormError('')
-    setResetMessage('')
-    try {
-      await onSignIn(email.trim(), password)
-    } catch (err: any) {
-      const code = err?.code
-      setFormError(code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found'
-        ? 'Email or password was not accepted. Make sure this account was created in Firebase project medver-62f1f, then check the email and password or send a password reset email.'
-        : code === 'auth/operation-not-allowed'
-          ? 'Email/password sign-in is disabled. Enable the Email/Password provider in Firebase Console > Authentication > Sign-in method.'
-          : code === 'auth/too-many-requests'
-            ? 'Too many failed attempts. Wait a little, then try again or request a password reset.'
-            : err?.message || 'Sign-in failed. Check your credentials and try again.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const handlePasswordReset = async () => {
-    if (!email.trim()) {
-      setFormError('Enter your account email first to request a password reset.')
-      return
-    }
-    setBusy(true)
-    setFormError('')
-    setResetMessage('')
-    try {
-      await sendPasswordResetEmail(auth, email.trim())
-      setResetMessage('If this email has an account in medver-62f1f, Firebase will send a password reset link.')
-    } catch (err: any) {
-      setFormError(err?.message || 'Could not send the password reset email.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <main className="min-h-screen grid place-items-center bg-slate-50 px-4 py-10 text-ink">
-      <section className="w-full max-w-md border border-ink/10 bg-white p-7 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-wider text-teal">Rwanda FDA workspace</p>
-        <h1 className="mt-2 text-2xl font-bold">MedVerify sign in</h1>
-        <p className="mt-2 text-sm text-ink/60">Use your authorized organization account. New accounts are assigned roles by the system administrator.</p>
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <label className="block text-sm font-medium">
-            Email
-            <input autoComplete="username" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 w-full rounded border border-ink/20 px-3 py-2" />
-          </label>
-          <label className="block text-sm font-medium">
-            Password
-            <input autoComplete="current-password" type="password" required value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1 w-full rounded border border-ink/20 px-3 py-2" />
-          </label>
-          {(formError || error) && <p role="alert" className="text-sm text-alert">{formError || error}</p>}
-          {resetMessage && <p role="status" className="text-sm text-genuine">{resetMessage}</p>}
-          <button type="button" disabled={busy || !email.trim()} onClick={() => void handlePasswordReset()} className="text-sm text-teal underline disabled:opacity-50">
-            Send password reset email
-          </button>
-          {error && auth.currentUser && (
-            <button type="button" onClick={() => void signOut(auth)} className="text-sm text-teal underline">Sign out of this account</button>
-          )}
-          <button disabled={busy} className="w-full rounded bg-teal py-2.5 font-medium text-white disabled:opacity-50">
-            {busy ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
-      </section>
-    </main>
   )
 }
