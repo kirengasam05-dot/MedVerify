@@ -25,6 +25,21 @@ import ReportsPage from './components/ReportsPage'
 import CasesPage from './components/CasesPage'
 import InvestigationsPage from './components/InvestigationsPage'
 import IntegrationPage from './components/IntegrationPage'
+import {
+  Search,
+  X,
+  ShieldAlert,
+  AlertTriangle,
+  CheckCircle,
+  Camera,
+  Cpu,
+  ArrowRight,
+  QrCode,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
+} from 'lucide-react'
 
 const LOCATIONS = ['Kigali', 'Rubavu', 'Rusizi']
 const CATS: Category[] = ['Genuine', 'Low Suspicion', 'Medium Suspicion', 'High Suspicion', 'Critical']
@@ -126,6 +141,11 @@ export default function App() {
       const status = await checkHealth()
       setHealth(status)
       if (status.status === 'online') {
+        if (status.firebase && !status.firebase.connected) {
+          console.warn('[Firebase] Database not connected:', status.firebase.error || 'Configure Firebase credentials/rules.')
+        } else if (status.firebase?.connected && !status.firebase.authenticated) {
+          console.info('[Firebase] Connected via unauthenticated REST access.')
+        }
         const [scansRes, prodsRes] = await Promise.allSettled([fetchScans(), fetchProducts()])
         if (scansRes.status === 'fulfilled') setScans(scansRes.value)
         if (prodsRes.status === 'fulfilled') setProducts(prodsRes.value)
@@ -277,22 +297,12 @@ export default function App() {
               </button>
             </div>
           )}
-          {health?.status === 'online' && health.firebase && !health.firebase.connected && (
-            <div className="mb-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
-              Backend is online, but Firebase Realtime Database is not connected. {health.firebase.error || 'Configure Firebase service-account credentials or database access rules in the backend.'}
-            </div>
-          )}
-          {health?.status === 'online' && health.firebase?.connected && !health.firebase.authenticated && (
-            <div className="mb-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
-              Firebase is connected through unauthenticated REST access. The current RTDB rules allow public reads and writes; configure a backend service-account key and restrict database rules before using real medicine records.
-            </div>
-          )}
 
           {/* RBAC Access Guard if tab is unauthorized for active role */}
           {!(ROLE_CONFIG[currentUser.role] || ROLE_CONFIG.manager).allowed.includes(tab) ? (
             <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center max-w-lg mx-auto my-12 shadow-sm">
-              <div className="w-12 h-12 rounded-xl bg-amber/10 text-amber flex items-center justify-center mx-auto mb-4 font-bold text-lg">
-                🛡️
+              <div className="w-12 h-12 rounded-xl bg-amber/10 text-amber flex items-center justify-center mx-auto mb-4">
+                <ShieldAlert className="w-6 h-6 text-amber" />
               </div>
               <h3 className="text-base font-bold text-slate-900">Access Restricted by RBAC</h3>
               <p className="text-xs text-slate-500 mt-2 leading-relaxed">
@@ -509,13 +519,14 @@ function Dashboard({
                 onChange={(e) => handleFilterChange(setSearch, e.target.value)}
                 className="w-full rounded-lg border border-ink/20 pl-8 pr-3 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal"
               />
-              <span className="absolute left-2.5 top-2 text-ink/40 text-xs">🔍</span>
+              <Search className="absolute left-2.5 top-2 text-ink/40 w-3.5 h-3.5 pointer-events-none" />
               {search && (
                 <button
                   onClick={() => handleFilterChange(setSearch, '')}
-                  className="absolute right-2.5 top-1.5 text-ink/40 hover:text-ink text-xs"
+                  className="absolute right-2.5 top-1.5 text-ink/40 hover:text-ink"
+                  aria-label="Clear search"
                 >
-                  ✕
+                  <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
@@ -642,11 +653,17 @@ function Dashboard({
                       </div>
                     ) : (
                       <span className="text-xs text-ink/60 font-medium">
-                        {s.caseStatus === 'closed'
-                          ? 'No case'
-                          : s.caseStatus === 'confirmed'
-                          ? '⚠️ Confirmed Counterfeit'
-                          : '✅ Cleared'}
+                        {s.caseStatus === 'closed' ? (
+                          'No case'
+                        ) : s.caseStatus === 'confirmed' ? (
+                          <span className="inline-flex items-center gap-1 text-alert">
+                            <AlertTriangle className="w-3.5 h-3.5" /> Confirmed Counterfeit
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-genuine">
+                            <CheckCircle className="w-3.5 h-3.5" /> Cleared
+                          </span>
+                        )}
                       </span>
                     )}
                     {role === 'manager' && s.caseStatus !== 'closed' && (
@@ -687,7 +704,7 @@ function Dashboard({
                 className="h-8 w-8 rounded-lg border border-ink/20 bg-white flex items-center justify-center text-xs font-bold text-ink hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white transition"
                 title="First Page"
               >
-                «
+                <ChevronsLeft className="w-3.5 h-3.5" />
               </button>
 
               {/* Previous Chevron */}
@@ -697,7 +714,7 @@ function Dashboard({
                 className="h-8 px-2.5 rounded-lg border border-ink/20 bg-white flex items-center gap-1 text-xs font-medium text-ink hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white transition"
                 title="Previous Page"
               >
-                <span className="text-sm">‹</span> Prev
+                <ChevronLeft className="w-3.5 h-3.5" /> Prev
               </button>
 
               {/* Visible Page Numbers */}
@@ -737,7 +754,7 @@ function Dashboard({
                 className="h-8 px-2.5 rounded-lg border border-ink/20 bg-white flex items-center gap-1 text-xs font-medium text-ink hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white transition"
                 title="Next Page"
               >
-                Next <span className="text-sm">›</span>
+                Next <ChevronRight className="w-3.5 h-3.5" />
               </button>
 
               {/* Last Page */}
@@ -747,7 +764,7 @@ function Dashboard({
                 className="h-8 w-8 rounded-lg border border-ink/20 bg-white flex items-center justify-center text-xs font-bold text-ink hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white transition"
                 title="Last Page"
               >
-                »
+                <ChevronsRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -866,13 +883,14 @@ function ScanPage({ onDone }: { onDone: () => void }) {
         <button
           type="button"
           onClick={() => setShowScanner((s) => !s)}
-          className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+          className={`rounded-lg px-3 py-2 text-sm font-medium transition inline-flex items-center gap-1.5 ${
             showScanner
               ? 'bg-ink text-white'
               : 'border border-ink/20 bg-white hover:bg-slate-50 text-ink'
           }`}
         >
-          {showScanner ? 'Hide Camera' : '📷 Open Camera Scanner'}
+          <Camera className="w-4 h-4" />
+          {showScanner ? 'Hide Camera' : 'Open Camera Scanner'}
         </button>
       </div>
 
@@ -957,7 +975,9 @@ function ScanPage({ onDone }: { onDone: () => void }) {
             <span className="text-xs font-semibold uppercase tracking-wider text-ink/60">
               Authentication Verdict
             </span>
-            <span className="text-xs font-mono text-ink/50">Synced to LCD 📟</span>
+            <span className="text-xs font-mono text-ink/50 flex items-center gap-1">
+              Synced to LCD <Cpu className="w-3.5 h-3.5 text-teal" />
+            </span>
           </div>
           <div className="text-xl font-bold text-ink mt-1">{result.name}</div>
           <div className="mt-2 flex items-center gap-2 text-sm">
@@ -977,8 +997,8 @@ function ScanPage({ onDone }: { onDone: () => void }) {
           </div>
           <div className="mt-3 pt-3 border-t border-ink/10 flex items-center justify-between text-xs text-ink/60">
             <span>Stage: {result.cat === 'Genuine' ? 'Released for Sale' : 'Quarantined / Flagged for Review'}</span>
-            <button onClick={onDone} className="text-sm font-medium text-teal underline hover:opacity-80">
-              View on Dashboard →
+            <button onClick={onDone} className="text-sm font-medium text-teal underline hover:opacity-80 inline-flex items-center gap-1">
+              View on Dashboard <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -1062,7 +1082,7 @@ function Registry({
         location: 'Kigali',
         device: 'registry-direct'
       })
-      alert(`✅ Verified: ${rec.productName} -> ${rec.category} (Synced to LCD!)`)
+      alert(`Verified: ${rec.productName} -> ${rec.category} (Synced to LCD)`)
       onChange()
     } catch (e: any) {
       alert(e?.message || 'Verification failed')
@@ -1184,7 +1204,7 @@ function Registry({
               }}
               className="w-full rounded-lg border border-ink/20 pl-8 pr-3 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal"
             />
-            <span className="absolute left-2.5 top-2 text-ink/40 text-xs">🔍</span>
+            <Search className="absolute left-2.5 top-2 text-ink/40 w-3.5 h-3.5 pointer-events-none" />
           </div>
         </div>
 
@@ -1220,7 +1240,7 @@ function Registry({
                     className="rounded-lg border border-teal/40 bg-teal/5 text-teal hover:bg-teal/15 px-2.5 py-1 text-xs font-semibold flex items-center gap-1.5 transition"
                     title="View and download scannable barcode label"
                   >
-                    🏷️ Barcode & QR
+                    <QrCode className="w-3.5 h-3.5" /> Barcode & QR
                   </button>
                 </td>
                 <td className="px-4 py-3">
@@ -1253,9 +1273,9 @@ function Registry({
               <button
                 onClick={() => setRegPage((p) => Math.max(1, p - 1))}
                 disabled={regCurrentPage === 1}
-                className="h-7 px-2.5 rounded border border-ink/20 bg-white text-ink hover:bg-slate-100 disabled:opacity-40 transition font-medium"
+                className="h-7 px-2.5 rounded border border-ink/20 bg-white text-ink hover:bg-slate-100 disabled:opacity-40 transition font-medium inline-flex items-center gap-1"
               >
-                ‹ Prev
+                <ChevronLeft className="w-3 h-3" /> Prev
               </button>
               <span className="px-2 font-medium text-ink">
                 Page {regCurrentPage} of {regTotalPages}
@@ -1263,9 +1283,9 @@ function Registry({
               <button
                 onClick={() => setRegPage((p) => Math.min(regTotalPages, p + 1))}
                 disabled={regCurrentPage === regTotalPages}
-                className="h-7 px-2.5 rounded border border-ink/20 bg-white text-ink hover:bg-slate-100 disabled:opacity-40 transition font-medium"
+                className="h-7 px-2.5 rounded border border-ink/20 bg-white text-ink hover:bg-slate-100 disabled:opacity-40 transition font-medium inline-flex items-center gap-1"
               >
-                Next ›
+                Next <ChevronRight className="w-3 h-3" />
               </button>
             </div>
           </div>

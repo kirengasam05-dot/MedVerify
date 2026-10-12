@@ -165,7 +165,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, error }) => {
             <span className="text-[14px] font-semibold tracking-tight text-slate-900">
               MedVerify
             </span>
-            <span
+            {/* <span
               className="px-1.5 py-0.5 text-[9.5px] font-semibold rounded uppercase tracking-wider border"
               style={{
                 color: BLACK_SOFT,
@@ -174,7 +174,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, error }) => {
               }}
             >
               Rwanda FDA
-            </span>
+            </span> */}
           </div>
         </div>
 
