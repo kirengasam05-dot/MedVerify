@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react'
 import { onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import {
   fetchScans,
@@ -16,15 +16,17 @@ import type { CurrentUser, UserRole } from './api'
 import { auth } from './firebase'
 import { classify, actionFor, tone } from './classify'
 import type { Scan, Product, Category, CaseStatus, CodeMatch } from './types'
-import BarcodeScanner from './components/BarcodeScanner'
-import BarcodeModal from './components/BarcodeModal'
 import SignInPage from './components/SignInPage'
 import Sidebar, { type TabKey } from './components/Sidebar'
 import Navbar from './components/Navbar'
-import ReportsPage from './components/ReportsPage'
-import CasesPage from './components/CasesPage'
-import InvestigationsPage from './components/InvestigationsPage'
-import IntegrationPage from './components/IntegrationPage'
+
+// Lazy-load heavier modules to keep initial bundle ultra-fast
+const BarcodeScanner = lazy(() => import('./components/BarcodeScanner'))
+const BarcodeModal = lazy(() => import('./components/BarcodeModal'))
+const ReportsPage = lazy(() => import('./components/ReportsPage'))
+const CasesPage = lazy(() => import('./components/CasesPage'))
+const InvestigationsPage = lazy(() => import('./components/InvestigationsPage'))
+const IntegrationPage = lazy(() => import('./components/IntegrationPage'))
 import {
   Search,
   X,
@@ -135,8 +137,13 @@ export default function App() {
     }
   }, [currentUser?.role, tab])
 
-  // Load data from Backend Gateway API
+  // Prevent overlapping concurrent API requests
+  const isRefreshingRef = useRef(false)
+
+  // Load data from Backend Gateway API with in-flight concurrency lock
   const refreshData = async () => {
+    if (isRefreshingRef.current) return
+    isRefreshingRef.current = true
     try {
       const status = await checkHealth()
       setHealth(status)
@@ -155,6 +162,8 @@ export default function App() {
       }
     } catch (err: any) {
       setError(err?.message || 'Failed to connect to backend API')
+    } finally {
+      isRefreshingRef.current = false
     }
   }
 
@@ -187,8 +196,25 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return
     void refreshData()
-    const timer = window.setInterval(() => void refreshData(), 4000)
-    return () => window.clearInterval(timer)
+
+    // Smart polling: Poll every 12 seconds only when tab is visible
+    const timer = window.setInterval(() => {
+      if (!document.hidden) {
+        void refreshData()
+      }
+    }, 12000)
+
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        void refreshData()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
   }, [currentUser])
 
   const handleSignIn = async (email: string, password: string) => {
@@ -321,6 +347,11 @@ export default function App() {
             </div>
           ) : (
             <>
+            <Suspense fallback={
+              <div className="flex items-center justify-center py-20">
+                <div className="h-6 w-6 rounded-full border-2 border-teal border-t-transparent animate-spin" />
+              </div>
+            }>
               {tab === 'dash' && (
                 <Dashboard
                   scans={scans}
@@ -368,6 +399,7 @@ export default function App() {
                   currentUser={currentUser}
                 />
               )}
+            </Suspense>
             </>
           )}
         </main>
@@ -896,11 +928,17 @@ function ScanPage({ onDone }: { onDone: () => void }) {
 
       {showScanner && (
         <div className="mb-5">
-          <BarcodeScanner
-            onDetected={onBarcodeScanned}
-            onImageCaptured={onImageCaptured}
-            onClose={() => setShowScanner(false)}
-          />
+          <Suspense fallback={
+            <div className="rounded-xl border border-ink/10 bg-white p-6 text-center text-xs text-ink/50">
+              Loading camera scanner...
+            </div>
+          }>
+            <BarcodeScanner
+              onDetected={onBarcodeScanned}
+              onImageCaptured={onImageCaptured}
+              onClose={() => setShowScanner(false)}
+            />
+          </Suspense>
         </div>
       )}
 
@@ -1294,11 +1332,13 @@ function Registry({
 
       {/* Barcode & QR Modal with Download & Screen Scanning */}
       {selectedProduct && (
-        <BarcodeModal
-          product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-          onTestScan={handleTestScan}
-        />
+        <Suspense fallback={null}>
+          <BarcodeModal
+            product={selectedProduct}
+            onClose={() => setSelectedProduct(null)}
+            onTestScan={handleTestScan}
+          />
+        </Suspense>
       )}
     </div>
   )
