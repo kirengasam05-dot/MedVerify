@@ -219,9 +219,13 @@ export default function App() {
 
   const handleSignIn = async (email: string, password: string) => {
     setAuthError('')
+    console.log('[Auth] Attempting sign-in for:', email.trim())
     const cred = await signInWithEmailAndPassword(auth, email.trim(), password)
+    console.log('[Auth] Firebase sign-in successful. Token retrieved.')
     const token = await cred.user.getIdToken()
+    console.log('[Auth] Verifying role permissions with backend /api/me...')
     const profile = await fetchCurrentUser(token)
+    console.log('[Auth] Verification complete, role assigned:', profile.role)
     setCurrentUser(profile)
   }
 

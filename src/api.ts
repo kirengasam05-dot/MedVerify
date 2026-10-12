@@ -8,16 +8,15 @@ export async function getAuthToken(): Promise<string | null> {
   if (!user) return null
   try {
     return await user.getIdToken()
-  } catch {
+  } catch (err) {
+    console.warn('[Auth] Failed to get ID token:', err)
     return null
   }
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
   const token = await getAuthToken()
-  if (!token) {
-    return {}
-  }
+  if (!token) return {}
   return { Authorization: `Bearer ${token}` }
 }
 
@@ -43,11 +42,49 @@ export interface HealthStatus {
   firebase?: { connected: boolean; mode: string; authenticated?: boolean; error?: string | null }
 }
 
+/**
+ * Universal API fetch helper with explicit timeout and browser console logging
+ */
+async function apiFetch<T>(endpoint: string, options: RequestInit = {}, timeoutMs = 12000): Promise<T> {
+  const url = `${API_URL}${endpoint}`
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  const startTime = Date.now()
+
+  console.log(`[API Req] ${options.method || 'GET'} ${url}`)
+
+  try {
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    })
+    const duration = Date.now() - startTime
+    clearTimeout(timeoutId)
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}: ${res.statusText}` }))
+      console.error(`[API Res Error] ${res.status} ${url} (${duration}ms):`, err)
+      throw new Error(err.error || `HTTP ${res.status}`)
+    }
+
+    const data = await res.json()
+    console.log(`[API Res Success] ${res.status} ${url} (${duration}ms):`, data)
+    return data
+  } catch (err: any) {
+    clearTimeout(timeoutId)
+    const duration = Date.now() - startTime
+    if (err.name === 'AbortError') {
+      console.error(`[API Timeout] ${url} timed out after ${timeoutMs / 1000}s`)
+      throw new Error(`Server request timed out after ${timeoutMs / 1000}s. Render backend may be waking up.`)
+    }
+    console.error(`[API Network Error] ${url} (${duration}ms):`, err)
+    throw err
+  }
+}
+
 export async function checkHealth(): Promise<HealthStatus> {
   try {
-    const res = await fetch(`${API_URL}/health`)
-    if (!res.ok) return { status: 'offline' }
-    const data = await res.json()
+    const data = await apiFetch<any>('/health', {}, 8000)
     return { status: 'online', firebase: data.firebase }
   } catch {
     return { status: 'offline' }
@@ -56,76 +93,49 @@ export async function checkHealth(): Promise<HealthStatus> {
 
 export async function fetchCurrentUser(providedToken?: string): Promise<CurrentUser> {
   const token = providedToken || (await getAuthToken())
-  if (!token) {
-    throw new Error('Sign in is required.')
-  }
-  const res = await fetch(`${API_URL}/me`, {
+  if (!token) throw new Error('Sign in is required.')
+  return apiFetch<CurrentUser>('/me', {
     headers: { Authorization: `Bearer ${token}` }
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Could not verify account role' }))
-    throw new Error(err.error || `HTTP ${res.status}`)
-  }
-  return res.json()
+  }, 12000)
 }
 
 export async function submitScan(data: SubmitScanPayload) {
-  const res = await fetch(`${API_URL}/scan`, {
+  const headers = await authHeaders()
+  return apiFetch<any>('/scan', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...await authHeaders() },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(data)
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Scan submission failed' }))
-    throw new Error(err.error || `HTTP ${res.status}`)
-  }
-  return res.json()
 }
 
 export async function submitImageScan(imageDataBase64: string, similarity: number = 95, location: string = 'Kigali') {
-  const res = await fetch(`${API_URL}/scan-image`, {
+  const headers = await authHeaders()
+  return apiFetch<any>('/scan-image', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...await authHeaders() },
-    body: JSON.stringify({
-      image: imageDataBase64,
-      similarity,
-      location
-    })
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify({ image: imageDataBase64, similarity, location })
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Image analysis failed' }))
-    throw new Error(err.error || `HTTP ${res.status}`)
-  }
-  return res.json()
 }
 
 export async function fetchScans() {
   const headers = await authHeaders()
   if (!headers.Authorization) return []
-  const res = await fetch(`${API_URL}/scans`, { headers })
-  if (!res.ok) throw new Error(`Failed to fetch scans (HTTP ${res.status})`)
-  return res.json()
+  return apiFetch<any[]>('/scans', { headers })
 }
 
 export async function updateScanCase(id: string, changes: { caseStatus?: string; priority?: string }) {
-  const res = await fetch(`${API_URL}/scans/${encodeURIComponent(id)}`, {
+  const headers = await authHeaders()
+  return apiFetch<any>(`/scans/${encodeURIComponent(id)}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...await authHeaders() },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(changes)
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Failed to update case' }))
-    throw new Error(err.error || `HTTP ${res.status}`)
-  }
-  return res.json()
 }
 
 export async function fetchProducts() {
   const headers = await authHeaders()
   if (!headers.Authorization) return []
-  const res = await fetch(`${API_URL}/products`, { headers })
-  if (!res.ok) throw new Error(`Failed to fetch products (HTTP ${res.status})`)
-  return res.json()
+  return apiFetch<any[]>('/products', { headers })
 }
 
 export async function addProduct(data: {
@@ -136,34 +146,28 @@ export async function addProduct(data: {
   batch: string
   expiry: string
 }) {
-  const res = await fetch(`${API_URL}/products`, {
+  const headers = await authHeaders()
+  return apiFetch<any>('/products', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...await authHeaders() },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(data)
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Failed to add product' }))
-    throw new Error(err.error || `HTTP ${res.status}`)
-  }
-  return res.json()
 }
 
 export async function toggleProductStatus(id: string) {
-  const res = await fetch(`${API_URL}/products/${encodeURIComponent(id)}`, {
+  const headers = await authHeaders()
+  return apiFetch<any>(`/products/${encodeURIComponent(id)}`, {
     method: 'PATCH',
-    headers: await authHeaders()
+    headers
   })
-  if (!res.ok) throw new Error(`Failed to toggle product (HTTP ${res.status})`)
-  return res.json()
 }
 
 export async function seedDemoData() {
-  const res = await fetch(`${API_URL}/seed`, {
+  const headers = await authHeaders()
+  return apiFetch<any>('/seed', {
     method: 'POST',
-    headers: await authHeaders()
+    headers
   })
-  if (!res.ok) throw new Error(`Failed to seed demo data (HTTP ${res.status})`)
-  return res.json()
 }
 
 export async function submitAccessRequest(data: {
@@ -173,16 +177,11 @@ export async function submitAccessRequest(data: {
   department?: string
   reason?: string
 }) {
-  const res = await fetch(`${API_URL}/request-access`, {
+  return apiFetch<any>('/request-access', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Could not submit access request' }))
-    throw new Error(err.error || `HTTP ${res.status}`)
-  }
-  return res.json()
 }
 
 export interface InvestigationRecord {
@@ -199,9 +198,7 @@ export interface InvestigationRecord {
 export async function fetchInvestigations(): Promise<InvestigationRecord[]> {
   const headers = await authHeaders()
   if (!headers.Authorization) return []
-  const res = await fetch(`${API_URL}/investigations`, { headers })
-  if (!res.ok) throw new Error(`Failed to fetch investigations (HTTP ${res.status})`)
-  return res.json()
+  return apiFetch<InvestigationRecord[]>('/investigations', { headers })
 }
 
 export async function createInvestigation(data: {
@@ -212,14 +209,10 @@ export async function createInvestigation(data: {
   findings: string
   verdict: string
 }): Promise<InvestigationRecord> {
-  const res = await fetch(`${API_URL}/investigations`, {
+  const headers = await authHeaders()
+  return apiFetch<InvestigationRecord>('/investigations', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...await authHeaders() },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(data)
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Could not create investigation' }))
-    throw new Error(err.error || `HTTP ${res.status}`)
-  }
-  return res.json()
 }

@@ -164,17 +164,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, error }) => {
             </div>
             <span className="text-[14px] font-semibold tracking-tight text-slate-900">
               MedVerify
-            </span>
-            {/* <span
-              className="px-1.5 py-0.5 text-[9.5px] font-semibold rounded uppercase tracking-wider border"
-              style={{
-                color: BLACK_SOFT,
-                borderColor: '#E2E8F0',
-                backgroundColor: '#F8FAFC',
-              }}
-            >
-              Rwanda FDA
-            </span> */}
+            </span>           
           </div>
         </div>
 
@@ -369,98 +359,22 @@ export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, error }) => {
             </p>
           </div>
 
-          {/* Mockup */}
-          <div className="relative z-10 flex-1 flex items-center justify-center mt-6">
-            <div className="w-full max-w-md space-y-2.5">
+          {/* Showcase Image */}
+          <div className="relative z-10 flex-1 flex flex-col items-center justify-center mt-6">
+            <div className="w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-black/40 backdrop-blur-md">
+              <img
+                src="/medver.jpeg"
+                alt="MedVerify Verification System"
+                className="w-full h-auto max-h-[360px] object-cover rounded-2xl transition-transform duration-500 hover:scale-[1.02]"
+              />
+            </div>
 
-              {/* Top row — metrics */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="rounded-2xl bg-white/95 backdrop-blur-sm p-3.5 shadow-xl">
-                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 uppercase tracking-wider">
-                    <FileCheck2 size={10} className="text-emerald-600" />
-                    <span>Verified today</span>
-                  </div>
-                  <p className="text-[20px] font-bold text-slate-900 tracking-tight mt-1.5 font-mono">
-                    1,248
-                  </p>
-                  <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
-                    ↑ 14.2% verified
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-white/95 backdrop-blur-sm p-3.5 shadow-xl">
-                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 uppercase tracking-wider">
-                    <Activity size={10} className="text-emerald-600" />
-                    <span>Accuracy index</span>
-                  </div>
-                  <p className="text-[20px] font-bold text-slate-900 tracking-tight mt-1.5 font-mono">
-                    98.5%
-                  </p>
-                  <p className="text-[10px] text-slate-600 font-medium mt-0.5">
-                    Certified batch
-                  </p>
-                </div>
+            {/* Compliance pill */}
+            <div className="flex justify-center pt-5">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm border border-white/15 text-[10px] text-slate-200 shadow-sm">
+                <ShieldCheck size={11} className="text-emerald-400" />
+                <span>Compliant with Rwanda FDA medical regulations</span>
               </div>
-
-              {/* Verification card */}
-              <div className="rounded-2xl bg-white/95 backdrop-blur-sm p-3.5 shadow-xl">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-9 h-9 rounded-lg flex items-center justify-center text-white shadow-sm"
-                      style={{ backgroundColor: BLACK_DEEP }}
-                    >
-                      <FileCheck2 size={16} />
-                    </div>
-                    <div>
-                      <p className="text-[12px] font-bold text-slate-900">
-                        Coartem 20/120mg
-                      </p>
-                      <p className="text-[10px] text-slate-500 font-mono">
-                        Batch B-2026-01 · Novartis
-                      </p>
-                    </div>
-                  </div>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9.5px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 whitespace-nowrap">
-                    Genuine · Valid
-                  </span>
-                </div>
-              </div>
-
-              {/* Scan activity bar */}
-              <div className="rounded-2xl bg-white/95 backdrop-blur-sm p-3.5 shadow-xl">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10.5px] font-semibold text-slate-700">
-                    Edge scanners activity
-                  </span>
-                  <span className="text-[9.5px] text-slate-400">Last 7 days</span>
-                </div>
-                <div className="flex items-end justify-between gap-2 h-14">
-                  {[35, 55, 40, 70, 48, 82, 62].map((h, i) => (
-                    <div
-                      key={i}
-                      className="flex-1 rounded-t"
-                      style={{
-                        height: `${h}%`,
-                        background: `linear-gradient(to top, ${BLACK_SOFT}, ${BLACK_LIGHT})`,
-                      }}
-                    />
-                  ))}
-                </div>
-                <div className="flex justify-between mt-1.5 text-[9px] text-slate-400 font-mono">
-                  <span>Mon</span><span>Tue</span><span>Wed</span>
-                  <span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
-                </div>
-              </div>
-
-              {/* BNR-style pill */}
-              <div className="flex justify-center pt-1">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 backdrop-blur-sm border border-white/15 text-[10px] text-slate-200">
-                  <ShieldCheck size={11} className="text-emerald-400" />
-                  <span>Compliant with Rwanda FDA medical regulations</span>
-                </div>
-              </div>
-
             </div>
           </div>
         </div>
