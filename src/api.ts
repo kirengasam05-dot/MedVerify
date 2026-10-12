@@ -1,7 +1,7 @@
 // MedVerify API Client for Python Gateway
 import { auth } from './firebase'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+const API_URL = import.meta.env.VITE_API_URL || 'https://medver-backend.onrender.com/api'
 
 export async function getAuthToken(): Promise<string | null> {
   const user = auth.currentUser
