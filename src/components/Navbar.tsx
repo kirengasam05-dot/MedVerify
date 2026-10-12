@@ -358,62 +358,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {currentUser.roleLabel || currentUser.role.replace('_', ' ')}
                 </div>
               </div>
-
-              {/* Rwanda FDA Target Population Role Switcher (RBAC) */}
-              <div className="p-2 bg-slate-50/80 rounded-xl mb-2 border border-slate-100">
-                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-2 py-1 flex items-center justify-between">
-                  <span>Target Population</span>
-                  <span className="text-[9px] font-mono text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200/50">RBAC Mode</span>
-                </div>
-                <div className="space-y-1 mt-1">
-                  {[
-                    {
-                      role: 'field_officer' as UserRole,
-                      title: '1. Field Inspection Officer',
-                      desc: 'Scan, review alerts, conduct investigations'
-                    },
-                    {
-                      role: 'ict_staff' as UserRole,
-                      title: '2. ICT & Systems Staff',
-                      desc: 'Maintain registry and integration'
-                    },
-                    {
-                      role: 'manager' as UserRole,
-                      title: '3. Manager & Supervisor',
-                      desc: 'Set priorities, oversee cases, use reports'
-                    }
-                  ].map((item) => {
-                    const isCurrent = currentUser.role === item.role
-                    return (
-                      <button
-                        key={item.role}
-                        type="button"
-                        onClick={() => {
-                          if (onSwitchRole) onSwitchRole(item.role)
-                          setUserMenuOpen(false)
-                        }}
-                        className={`w-full text-left p-2 rounded-lg transition-all text-xs flex items-center justify-between ${
-                          isCurrent
-                            ? 'bg-white shadow-xs border border-teal/40 text-teal font-semibold'
-                            : 'hover:bg-slate-200/60 text-slate-600'
-                        }`}
-                      >
-                        <div className="min-w-0 pr-1">
-                          <div className={`text-[11.5px] leading-tight ${isCurrent ? 'text-teal' : 'text-slate-800 font-medium'}`}>
-                            {item.title}
-                          </div>
-                          <div className="text-[9.5px] text-slate-400 leading-tight mt-0.5 truncate">
-                            {item.desc}
-                          </div>
-                        </div>
-                        {isCurrent && (
-                          <span className="w-2 h-2 rounded-full bg-teal flex-shrink-0 ml-1 shadow-xs" />
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
+              
 
               {/* Clean Account Menu Links */}
               <div className="space-y-0.5">

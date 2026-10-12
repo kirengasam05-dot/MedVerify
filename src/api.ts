@@ -3,12 +3,13 @@ import { auth } from './firebase'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
-async function authHeaders(): Promise<HeadersInit> {
+async function authHeaders(): Promise<Record<string, string>> {
   const user = auth.currentUser
   if (!user) {
-    return { Authorization: 'Bearer dev-mock-token' }
+    return {}
   }
-  return { Authorization: `Bearer ${await user.getIdToken()}` }
+  const token = await user.getIdToken()
+  return { Authorization: `Bearer ${token}` }
 }
 
 export type UserRole = 'field_officer' | 'ict_staff' | 'manager'

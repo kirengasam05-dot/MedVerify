@@ -56,14 +56,6 @@ function displayValue(value: unknown) {
   return typeof value === 'object' ? JSON.stringify(value) : String(value)
 }
 
-// Temporary mock user while authentication is commented out for development
-const DEV_MOCK_USER: CurrentUser = {
-  uid: 'dev-manager-01',
-  email: 'manager@example.gov.rw',
-  role: 'manager',
-  roleLabel: 'Manager, supervisor, or administrator'
-}
-
 // Rwanda FDA Target Population Roles & RBAC Configuration
 const ROLE_CONFIG: Record<
   UserRole,
@@ -139,14 +131,22 @@ export default function App() {
         setProducts(prodsData)
         setError('')
       } else {
-        setError('Backend API is offline. Start it in MedVer_backend: python api.py')
+        setError('Backend API is offline. Start it in MedVer_backend: python main.py')
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to connect to backend API')
+      const msg = err?.message || 'Failed to connect to backend API'
+      if (msg.includes('401') || msg.includes('UNAUTHORIZED') || msg.includes('Sign in is required')) {
+        console.warn('[Session] Session expired or unauthorized on backend:', msg)
+        setCurrentUser(null)
+        setAuthError('Your session has expired or is unauthorized. Please sign in again.')
+        void signOut(auth)
+        return
+      }
+      setError(msg)
     }
   }
 
-  // --- LIVE AUTH LISTENER ---
+  // --- LIVE AUTH LISTENER (Strict Backend Role & Session Validation) ---
   useEffect(() => {
     return onAuthStateChanged(auth, async (user) => {
       setAuthError('')
@@ -158,25 +158,15 @@ export default function App() {
       try {
         const profile = await fetchCurrentUser()
         setCurrentUser(profile)
+        setAuthError('')
       } catch (err: any) {
-        // Fallback for assigned role in development
-        const email = (user.email || '').toLowerCase()
-        const role: UserRole = email.includes('officer')
-          ? 'field_officer'
-          : email.includes('ict')
-          ? 'ict_staff'
-          : 'manager'
-        const roleLabels: Record<UserRole, string> = {
-          field_officer: 'Post-market surveillance & inspection officer',
-          ict_staff: 'ICT & regulatory-systems staff',
-          manager: 'Manager, supervisor, or administrator'
-        }
-        setCurrentUser({
-          uid: user.uid,
-          email: user.email || 'user@example.gov.rw',
-          role,
-          roleLabel: roleLabels[role]
-        })
+        console.warn('[Auth] Backend rejected session verification:', err)
+        setCurrentUser(null)
+        setAuthError(
+          err?.message ||
+            'Your session is not recognized or authorized by the MedVerify backend. Please sign in.'
+        )
+        void signOut(auth)
       } finally {
         setAuthReady(true)
       }
@@ -191,7 +181,19 @@ export default function App() {
   }, [currentUser])
 
   const handleSignIn = async (email: string, password: string) => {
+    setAuthError('')
     await signInWithEmailAndPassword(auth, email, password)
+    try {
+      const profile = await fetchCurrentUser()
+      setCurrentUser(profile)
+    } catch (err: any) {
+      void signOut(auth)
+      setCurrentUser(null)
+      throw new Error(
+        err?.message ||
+          'Authenticated with Firebase, but your account has no assigned MedVerify role on the backend.'
+      )
+    }
   }
 
   // --- AUTH GUARD & SIGN IN PAGE ---
