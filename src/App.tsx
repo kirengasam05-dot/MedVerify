@@ -134,15 +134,7 @@ export default function App() {
         setError('Backend API is offline. Start it in MedVer_backend: python main.py')
       }
     } catch (err: any) {
-      const msg = err?.message || 'Failed to connect to backend API'
-      if (msg.includes('401') || msg.includes('UNAUTHORIZED') || msg.includes('Sign in is required')) {
-        console.warn('[Session] Session expired or unauthorized on backend:', msg)
-        setCurrentUser(null)
-        setAuthError('Your session has expired or is unauthorized. Please sign in again.')
-        void signOut(auth)
-        return
-      }
-      setError(msg)
+      setError(err?.message || 'Failed to connect to backend API')
     }
   }
 

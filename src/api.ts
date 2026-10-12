@@ -3,12 +3,39 @@ import { auth } from './firebase'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
+async function getAuthToken(): Promise<string | null> {
+  if (auth.currentUser) {
+    try {
+      return await auth.currentUser.getIdToken()
+    } catch {
+      return null
+    }
+  }
+  return new Promise((resolve) => {
+    const unsub = auth.onAuthStateChanged(async (u) => {
+      unsub()
+      if (u) {
+        try {
+          resolve(await u.getIdToken())
+        } catch {
+          resolve(null)
+        }
+      } else {
+        resolve(null)
+      }
+    })
+    setTimeout(() => {
+      unsub()
+      resolve(null)
+    }, 1500)
+  })
+}
+
 async function authHeaders(): Promise<Record<string, string>> {
-  const user = auth.currentUser
-  if (!user) {
+  const token = await getAuthToken()
+  if (!token) {
     return {}
   }
-  const token = await user.getIdToken()
   return { Authorization: `Bearer ${token}` }
 }
 
@@ -100,7 +127,9 @@ export async function submitImageScan(imageDataBase64: string, similarity: numbe
 }
 
 export async function fetchScans() {
-  const res = await fetch(`${API_URL}/scans`, { headers: await authHeaders() })
+  const headers = await authHeaders()
+  if (!headers.Authorization) return []
+  const res = await fetch(`${API_URL}/scans`, { headers })
   if (!res.ok) throw new Error(`Failed to fetch scans (HTTP ${res.status})`)
   return res.json()
 }
@@ -119,7 +148,9 @@ export async function updateScanCase(id: string, changes: { caseStatus?: string;
 }
 
 export async function fetchProducts() {
-  const res = await fetch(`${API_URL}/products`, { headers: await authHeaders() })
+  const headers = await authHeaders()
+  if (!headers.Authorization) return []
+  const res = await fetch(`${API_URL}/products`, { headers })
   if (!res.ok) throw new Error(`Failed to fetch products (HTTP ${res.status})`)
   return res.json()
 }
@@ -193,7 +224,9 @@ export interface InvestigationRecord {
 }
 
 export async function fetchInvestigations(): Promise<InvestigationRecord[]> {
-  const res = await fetch(`${API_URL}/investigations`, { headers: await authHeaders() })
+  const headers = await authHeaders()
+  if (!headers.Authorization) return []
+  const res = await fetch(`${API_URL}/investigations`, { headers })
   if (!res.ok) throw new Error(`Failed to fetch investigations (HTTP ${res.status})`)
   return res.json()
 }

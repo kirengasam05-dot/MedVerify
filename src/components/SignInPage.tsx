@@ -54,8 +54,8 @@ const EMERALD     = '#10B981';   // success accent
 const EMERALD_DK  = '#059669';
 
 export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, error }) => {
-  const [email, setEmail] = useState('manager@example.gov.rw');
-  const [password, setPassword] = useState('manager123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [busy, setBusy] = useState(false);
