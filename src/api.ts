@@ -45,7 +45,7 @@ export interface HealthStatus {
 /**
  * Universal API fetch helper with explicit timeout and browser console logging
  */
-async function apiFetch<T>(endpoint: string, options: RequestInit = {}, timeoutMs = 12000): Promise<T> {
+async function apiFetch<T>(endpoint: string, options: RequestInit = {}, timeoutMs = 45000): Promise<T> {
   const url = `${API_URL}${endpoint}`
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
@@ -75,7 +75,7 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}, timeoutM
     const duration = Date.now() - startTime
     if (err.name === 'AbortError') {
       console.error(`[API Timeout] ${url} timed out after ${timeoutMs / 1000}s`)
-      throw new Error(`Server request timed out after ${timeoutMs / 1000}s. Render backend may be waking up.`)
+      throw new Error(`Server request timed out after ${timeoutMs / 1000}s. Render backend may still be spinning up.`)
     }
     console.error(`[API Network Error] ${url} (${duration}ms):`, err)
     throw err
@@ -84,7 +84,7 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}, timeoutM
 
 export async function checkHealth(): Promise<HealthStatus> {
   try {
-    const data = await apiFetch<any>('/health', {}, 8000)
+    const data = await apiFetch<any>('/health', {}, 15000)
     return { status: 'online', firebase: data.firebase }
   } catch {
     return { status: 'offline' }
@@ -96,7 +96,7 @@ export async function fetchCurrentUser(providedToken?: string): Promise<CurrentU
   if (!token) throw new Error('Sign in is required.')
   return apiFetch<CurrentUser>('/me', {
     headers: { Authorization: `Bearer ${token}` }
-  }, 12000)
+  }, 45000)
 }
 
 export async function submitScan(data: SubmitScanPayload) {
