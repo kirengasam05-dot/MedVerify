@@ -216,3 +216,92 @@ export async function createInvestigation(data: {
     body: JSON.stringify(data)
   })
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USER & ROLE MANAGEMENT API (Manager Privileges)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SystemUser {
+  id: string
+  name: string
+  email: string
+  role: UserRole
+  roleLabel?: string
+  department?: string
+  status: 'active' | 'inactive'
+  createdAt: string
+  lastLogin?: string | null
+}
+
+export interface AccessRequest {
+  id: string
+  email: string
+  name: string
+  role: UserRole
+  department?: string
+  reason?: string
+  requestedAt: string
+  status: 'pending' | 'approved' | 'rejected'
+}
+
+export async function fetchUsers(): Promise<SystemUser[]> {
+  const headers = await authHeaders()
+  if (!headers.Authorization) return []
+  return apiFetch<SystemUser[]>('/users', { headers })
+}
+
+export async function createSystemUser(data: {
+  name: string
+  email: string
+  role: UserRole
+  department?: string
+  password?: string
+  status?: 'active' | 'inactive'
+}): Promise<SystemUser> {
+  const headers = await authHeaders()
+  return apiFetch<SystemUser>('/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(data)
+  })
+}
+
+export async function updateSystemUser(
+  id: string,
+  changes: Partial<Pick<SystemUser, 'name' | 'role' | 'department' | 'status'>>
+): Promise<SystemUser> {
+  const headers = await authHeaders()
+  return apiFetch<SystemUser>(`/users/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(changes)
+  })
+}
+
+export async function deleteSystemUser(id: string): Promise<{ success: boolean; message: string }> {
+  const headers = await authHeaders()
+  return apiFetch<{ success: boolean; message: string }>(`/users/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers
+  })
+}
+
+export async function fetchAccessRequests(): Promise<AccessRequest[]> {
+  const headers = await authHeaders()
+  if (!headers.Authorization) return []
+  return apiFetch<AccessRequest[]>('/access-requests', { headers })
+}
+
+export async function updateAccessRequest(
+  id: string,
+  action: 'approve' | 'reject',
+  role?: UserRole
+): Promise<{ success: boolean; request: AccessRequest }> {
+  const headers = await authHeaders()
+  return apiFetch<{ success: boolean; request: AccessRequest }>(`/access-requests/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify({ action, role })
+  })
+}
+

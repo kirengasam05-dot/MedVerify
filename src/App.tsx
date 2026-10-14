@@ -27,6 +27,7 @@ const ReportsPage = lazy(() => import('./components/ReportsPage'))
 const CasesPage = lazy(() => import('./components/CasesPage'))
 const InvestigationsPage = lazy(() => import('./components/InvestigationsPage'))
 const IntegrationPage = lazy(() => import('./components/IntegrationPage'))
+const UserManagementPage = lazy(() => import('./components/UserManagementPage'))
 import {
   Search,
   X,
@@ -91,10 +92,10 @@ const ROLE_CONFIG: Record<
     tasks: 'Maintain the product registry and integration'
   },
   manager: {
-    allowed: ['dash', 'cases', 'reports'],
+    allowed: ['dash', 'cases', 'users', 'reports'],
     defaultTab: 'dash',
     title: 'Manager, supervisor, or administrator',
-    tasks: 'Set priorities, oversee cases, use reports'
+    tasks: 'Set priorities, oversee cases, manage staff & reports'
   }
 }
 
@@ -395,6 +396,11 @@ export default function App() {
                   scans={scans}
                   currentUser={currentUser}
                   onCaseUpdated={refreshData}
+                />
+              )}
+              {tab === 'users' && (
+                <UserManagementPage
+                  currentUser={currentUser}
                 />
               )}
               {tab === 'reports' && (

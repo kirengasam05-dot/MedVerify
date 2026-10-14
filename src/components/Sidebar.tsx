@@ -30,6 +30,7 @@ import {
   X,
   BadgeCheck,
   ChevronDown,
+  Users,
 } from 'lucide-react';
 import type { CurrentUser } from '../api';
 
@@ -40,6 +41,7 @@ export type TabKey =
   | 'registry'
   | 'integration'
   | 'cases'
+  | 'users'
   | 'reports';
 
 interface SidebarProps {
@@ -147,6 +149,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           badgeColor: 'bg-rose-500/10 text-rose-400 border border-rose-500/20',
         },
         {
+          id: 'users',
+          label: 'User Management',
+          subtitle: 'Staff roles & privileges',
+          icon: Users,
+        },
+        {
           id: 'reports',
           label: 'Reports & Analytics',
           subtitle: 'Export CSV & print audits',
@@ -164,7 +172,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const roleAllowedTabs: Record<string, TabKey[]> = {
     field_officer: ['dash', 'scan', 'investigations'],
     ict_staff: ['registry', 'integration'],
-    manager: ['dash', 'cases', 'reports'],
+    manager: ['dash', 'cases', 'users', 'reports'],
   };
   const allowedTabs = roleAllowedTabs[userRole] || roleAllowedTabs.manager;
 
