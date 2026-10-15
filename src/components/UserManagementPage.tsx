@@ -258,7 +258,7 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentU
         email: newEmail.trim().toLowerCase(),
         role: newRole,
         department: newDepartment.trim(),
-        password: newPassword.trim() || undefined,
+        password: newPassword,
         status: 'active'
       });
       setUsers((prev) => [created, ...prev.filter((u) => u.email !== created.email)]);
@@ -1122,17 +1122,20 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentU
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Initial Password (Optional)
+                    Initial Password *
                   </label>
                   <input
-                    type="text"
-                    placeholder="Leave empty for user reset link"
+                    type="password"
+                    required
+                    minLength={6}
+                    autoComplete="new-password"
+                    placeholder="At least 6 characters"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 font-mono"
                   />
                   <p className="text-[10px] text-slate-400 mt-1">
-                    User can also use "Forgot Password" on sign-in page to set their own password.
+                    This password creates the user's Firebase sign-in account. They can change it later with Forgot Password.
                   </p>
                 </div>
               </div>

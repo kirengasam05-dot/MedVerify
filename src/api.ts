@@ -1,7 +1,9 @@
 // MedVerify API Client for Python Gateway
 import { auth } from './firebase'
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://medver-backend.onrender.com/api'
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV
+  ? 'http://127.0.0.1:8000/api'
+  : 'https://medver-backend-21ru.onrender.com/api')
 
 export async function getAuthToken(): Promise<string | null> {
   const user = auth.currentUser
@@ -255,7 +257,7 @@ export async function createSystemUser(data: {
   email: string
   role: UserRole
   department?: string
-  password?: string
+  password: string
   status?: 'active' | 'inactive'
 }): Promise<SystemUser> {
   const headers = await authHeaders()

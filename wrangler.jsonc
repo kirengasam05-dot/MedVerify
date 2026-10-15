@@ -5,7 +5,7 @@
   "pages_build_output_dir": "dist",
   "vars": {
     "FIREBASE_URL": "https://medver-62f1f-default-rtdb.firebaseio.com",
-    "VITE_API_URL": "https://medver-backend.onrender.com/api",
+    "VITE_API_URL": "https://medver-backend-21ru.onrender.com/api",
     "VITE_FIREBASE_API_KEY": "AIzaSyBH7hAtZgYeMFu1AY6k-T4phNreXyI9fMU",
     "VITE_FIREBASE_APP_ID": "1:553350523114:web:f586ad35d6062ad4ba8f93",
     "VITE_FIREBASE_AUTH_DOMAIN": "medver-62f1f.firebaseapp.com",
