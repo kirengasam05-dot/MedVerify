@@ -170,6 +170,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // 3. Managers, supervisors & administrators: Set priorities, oversee cases, use reports
   const userRole = currentUser?.role || 'manager';
   const roleAllowedTabs: Record<string, TabKey[]> = {
+    admin: ['dash', 'scan', 'investigations', 'registry', 'integration', 'cases', 'users', 'reports'],
     field_officer: ['dash', 'scan', 'investigations'],
     ict_staff: ['registry', 'integration'],
     manager: ['dash', 'cases', 'users', 'reports'],

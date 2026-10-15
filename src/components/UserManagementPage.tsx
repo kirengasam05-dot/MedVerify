@@ -61,6 +61,23 @@ const ROLE_DEFINITIONS: Record<
     allowedTabs: string[];
   }
 > = {
+  admin: {
+    title: 'System Administrator',
+    description: 'Master administrative access across the entire MedVerify ecosystem: user management, case oversight, registry catalog, hardware gateway, and surveillance reports.',
+    color: 'text-indigo-600',
+    badgeBg: 'bg-indigo-50 text-indigo-700',
+    badgeBorder: 'border-indigo-200',
+    icon: Shield,
+    permissions: [
+      'Master administrative privileges & full access to manage all system activity',
+      'Add, configure & manage staff permissions across all operational roles',
+      'Oversee suspicious cases, set quarantine priorities, and verify batches',
+      'Manage official Rwanda FDA verified medicines catalog & integrity status',
+      'Monitor hardware gateway, spectrometer connectivity & cloud data sync',
+      'Conduct post-market inspections, facility audits, and export compliance reports'
+    ],
+    allowedTabs: ['Dashboard', 'Scan Medicine', 'Field Investigations', 'Verified Registry', 'System Integration', 'Oversee Cases', 'User Management', 'Reports & Analytics']
+  },
   manager: {
     title: 'Manager & Administrator',
     description: 'Executive oversight, case quarantine priorities, user permissions, and compliance audit exports.',
@@ -210,6 +227,7 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentU
 
   // Metrics
   const metrics = useMemo(() => {
+    const adminsCount = users.filter((u) => u.role === 'admin').length;
     const managersCount = users.filter((u) => u.role === 'manager').length;
     const ictCount = users.filter((u) => u.role === 'ict_staff').length;
     const fieldCount = users.filter((u) => u.role === 'field_officer').length;
@@ -217,6 +235,7 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentU
     return {
       total: users.length,
       active: activeCount,
+      admins: adminsCount,
       managers: managersCount,
       ict: ictCount,
       field: fieldCount,
@@ -436,6 +455,15 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentU
 
         <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between">
+            <span className="text-[11px] font-medium text-indigo-700 uppercase tracking-wider">Admins</span>
+            <Shield className="w-3.5 h-3.5 text-indigo-600" />
+          </div>
+          <div className="text-xl font-bold text-slate-900 mt-1">{metrics.admins}</div>
+          <div className="text-[10px] text-slate-500 mt-0.5">Full System Access</div>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between">
             <span className="text-[11px] font-medium text-purple-700 uppercase tracking-wider">Managers</span>
             <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
           </div>
@@ -461,10 +489,10 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentU
           <div className="text-[10px] text-slate-500 mt-0.5">Inspectors & Scanners</div>
         </div>
 
-        <div className="col-span-2 bg-gradient-to-br from-slate-900 to-slate-800 text-white p-3.5 rounded-xl border border-slate-800 shadow-xs flex items-center justify-between">
+        <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-3.5 rounded-xl border border-slate-800 shadow-xs flex items-center justify-between">
           <div>
             <div className="text-[11px] font-medium text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-              <span>Pending Access Requests</span>
+              <span>Pending Requests</span>
               {pendingRequestsCount > 0 && (
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
               )}
@@ -473,15 +501,15 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentU
               {pendingRequestsCount} <span className="text-xs font-normal text-slate-400">waiting</span>
             </div>
             <p className="text-[10px] text-slate-300 mt-0.5">
-              From sign-in access portal
+              From access portal
             </p>
           </div>
           {pendingRequestsCount > 0 && (
             <button
               onClick={() => setViewTab('requests')}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-400 text-slate-950 hover:bg-amber-300 transition cursor-pointer"
+              className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-400 text-slate-950 hover:bg-amber-300 transition cursor-pointer"
             >
-              Review Now
+              Review
             </button>
           )}
         </div>
@@ -530,7 +558,7 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentU
           }`}
         >
           <Shield className="w-4 h-4" />
-          <span>3 Operational Roles & Matrix</span>
+          <span>4 Operational Roles & Permissions Matrix</span>
         </button>
       </div>
 
@@ -567,6 +595,7 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentU
                 className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:border-slate-900 cursor-pointer"
               >
                 <option value="all">All Roles</option>
+                <option value="admin">System Admin</option>
                 <option value="manager">Manager</option>
                 <option value="ict_staff">ICT Staff</option>
                 <option value="field_officer">Field Officer</option>

@@ -79,6 +79,12 @@ const ROLE_CONFIG: Record<
   UserRole,
   { allowed: TabKey[]; defaultTab: TabKey; title: string; tasks: string }
 > = {
+  admin: {
+    allowed: ['dash', 'scan', 'investigations', 'registry', 'integration', 'cases', 'users', 'reports'],
+    defaultTab: 'dash',
+    title: 'System Administrator',
+    tasks: 'Master administrator with full privileges to manage all activity in the entire system'
+  },
   field_officer: {
     allowed: ['dash', 'scan', 'investigations'],
     defaultTab: 'dash',
@@ -678,7 +684,7 @@ function Dashboard({
                   </td>
                   <td className="px-4 py-3">{s.location}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    {s.caseStatus === 'open' && role === 'field_officer' ? (
+                    {s.caseStatus === 'open' && (role === 'field_officer' || role === 'admin') ? (
                       <div className="flex gap-1.5">
                         <button
                           onClick={() => setCase(s.id, 'confirmed')}
@@ -708,7 +714,7 @@ function Dashboard({
                         )}
                       </span>
                     )}
-                    {role === 'manager' && s.caseStatus !== 'closed' && (
+                    {(role === 'manager' || role === 'admin') && s.caseStatus !== 'closed' && (
                       <select
                         aria-label={`Priority for ${s.barcode}`}
                         className="mt-2 block rounded border border-ink/20 bg-white px-2 py-1 text-xs"

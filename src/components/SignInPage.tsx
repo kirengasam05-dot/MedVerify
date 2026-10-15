@@ -39,7 +39,7 @@ import {
 } from 'lucide-react';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../firebase';
-import { submitAccessRequest } from '../api';
+import { submitAccessRequest, type UserRole } from '../api';
 
 interface SignInPageProps {
   onSignIn: (email: string, password: string) => Promise<void>;
@@ -66,7 +66,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, error }) => {
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [reqName, setReqName] = useState('');
   const [reqEmail, setReqEmail] = useState('');
-  const [reqRole, setReqRole] = useState<'field_officer' | 'ict_staff' | 'manager'>('field_officer');
+  const [reqRole, setReqRole] = useState<UserRole>('field_officer');
   const [reqDepartment, setReqDepartment] = useState('Kigali Central Surveillance');
   const [reqReason, setReqReason] = useState('');
   const [reqBusy, setReqBusy] = useState(false);
@@ -468,9 +468,10 @@ export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, error }) => {
                   onChange={(e) => setReqRole(e.target.value as any)}
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[12.5px] text-slate-900 focus:outline-none focus:border-slate-900 focus:ring-4 focus:ring-slate-900/10 transition bg-white"
                 >
+                  <option value="admin">System Admin — Full access to manage all system activity</option>
+                  <option value="manager">Manager — Case decisions & surveillance oversight</option>
+                  <option value="ict_staff">ICT Staff — Registry & systems maintenance</option>
                   <option value="field_officer">Field Officer — Barcode & camera scans</option>
-                  <option value="ict_staff">ICT Staff — Registry & maintenance</option>
-                  <option value="manager">Manager — Case decisions & surveillance</option>
                 </select>
               </div>
 

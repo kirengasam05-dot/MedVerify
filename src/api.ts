@@ -20,7 +20,7 @@ async function authHeaders(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${token}` }
 }
 
-export type UserRole = 'field_officer' | 'ict_staff' | 'manager'
+export type UserRole = 'admin' | 'field_officer' | 'ict_staff' | 'manager'
 export interface CurrentUser {
   uid: string
   email: string
