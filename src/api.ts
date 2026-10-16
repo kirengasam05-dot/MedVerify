@@ -307,3 +307,18 @@ export async function updateAccessRequest(
   })
 }
 
+export async function registerUser(data: {
+  name: string
+  email: string
+  password?: string
+  role?: UserRole
+  department?: string
+}): Promise<{ success: boolean; user: SystemUser; role: UserRole; roleLabel?: string }> {
+  const headers = await authHeaders()
+  return apiFetch<any>('/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(data)
+  })
+}
+

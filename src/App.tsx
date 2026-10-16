@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react'
-import { onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from 'firebase/auth'
+import {
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut
+} from 'firebase/auth'
 import {
   fetchScans,
   fetchProducts,
@@ -10,7 +16,8 @@ import {
   toggleProductStatus,
   seedDemoData,
   checkHealth,
-  fetchCurrentUser
+  fetchCurrentUser,
+  registerUser
 } from './api'
 import type { CurrentUser, UserRole } from './api'
 import { auth } from './firebase'
@@ -185,9 +192,25 @@ export default function App() {
       }
       try {
         const token = await user.getIdToken()
-        const profile = await fetchCurrentUser(token)
-        setCurrentUser(profile)
-        setAuthError('')
+        try {
+          const profile = await fetchCurrentUser(token)
+          setCurrentUser(profile)
+          setAuthError('')
+        } catch (fetchErr: any) {
+          // If authenticated in Firebase but MedVerify profile needs onboarding
+          console.info('[Auth] Onboarding user role in backend database...')
+          const userEmail = (user.email || '').toLowerCase()
+          const autoRole: UserRole = userEmail.includes('admin') ? 'admin' : 'manager'
+          await registerUser({
+            name: user.displayName || userEmail.split('@')[0].replace(/[._]/g, ' ').replace(/^./, (s) => s.toUpperCase()),
+            email: userEmail,
+            role: autoRole,
+            department: 'Rwanda FDA Central Surveillance'
+          })
+          const profile = await fetchCurrentUser(token)
+          setCurrentUser(profile)
+          setAuthError('')
+        }
       } catch (err: any) {
         console.warn('[Auth] Backend session verification notice:', err)
         setAuthError(
@@ -231,8 +254,46 @@ export default function App() {
     console.log('[Auth] Firebase sign-in successful. Token retrieved.')
     const token = await cred.user.getIdToken()
     console.log('[Auth] Verifying role permissions with backend /api/me...')
+    try {
+      const profile = await fetchCurrentUser(token)
+      console.log('[Auth] Verification complete, role assigned:', profile.role)
+      setCurrentUser(profile)
+    } catch (err: any) {
+      console.info('[Auth] Role not yet attached; auto-registering profile...')
+      const userEmail = email.trim().toLowerCase()
+      const roleToAssign: UserRole = userEmail.includes('admin') ? 'admin' : 'manager'
+      await registerUser({
+        name: userEmail.split('@')[0].replace(/[._]/g, ' ').replace(/^./, (s) => s.toUpperCase()),
+        email: userEmail,
+        role: roleToAssign,
+        department: 'Rwanda FDA Central Surveillance'
+      })
+      const profile = await fetchCurrentUser(token)
+      setCurrentUser(profile)
+    }
+  }
+
+  const handleRegister = async (data: {
+    name: string
+    email: string
+    password: string
+    role: UserRole
+    department: string
+  }) => {
+    setAuthError('')
+    console.log('[Auth] Creating account for:', data.email.trim(), 'with role:', data.role)
+    const cred = await createUserWithEmailAndPassword(auth, data.email.trim(), data.password)
+    console.log('[Auth] Firebase account created.')
+    const token = await cred.user.getIdToken()
+    console.log('[Auth] Registering role in backend...')
+    await registerUser({
+      name: data.name.trim(),
+      email: data.email.trim().toLowerCase(),
+      role: data.role,
+      department: data.department.trim()
+    })
     const profile = await fetchCurrentUser(token)
-    console.log('[Auth] Verification complete, role assigned:', profile.role)
+    console.log('[Auth] Registration complete. Assigned role:', profile.role)
     setCurrentUser(profile)
   }
 
@@ -289,7 +350,7 @@ export default function App() {
   }
 
   if (!currentUser) {
-    return <SignInPage onSignIn={handleSignIn} error={authError} />
+    return <SignInPage onSignIn={handleSignIn} onRegister={handleRegister} error={authError} />
   }
 
   return (

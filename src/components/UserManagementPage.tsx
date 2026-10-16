@@ -27,7 +27,10 @@ import {
   Sparkles,
   UserCheck,
   UserX,
-  ChevronDown
+  ChevronDown,
+  Copy,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import {
   fetchUsers,
@@ -148,11 +151,33 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentU
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [newRole, setNewRole] = useState<UserRole>('field_officer');
+  const [newRole, setNewRole] = useState<UserRole>('admin');
   const [newDepartment, setNewDepartment] = useState('Kigali Central Surveillance');
   const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [addBusy, setAddBusy] = useState(false);
   const [addError, setAddError] = useState('');
+
+  // Newly Created User Credentials Modal
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    name: string;
+    email: string;
+    role: UserRole;
+    password: string;
+    department: string;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Generate a secure compliant initial password
+  const generateStrongPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*'
+    let pwd = 'Fda@'
+    for (let i = 0; i < 6; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    setNewPassword(pwd)
+    setShowNewPassword(true)
+  }
 
   // Edit User Modal State
   const [editingUser, setEditingUser] = useState<SystemUser | null>(null);
@@ -264,6 +289,13 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentU
       setUsers((prev) => [created, ...prev.filter((u) => u.email !== created.email)]);
       flashSuccess(`User ${created.name} (${created.email}) added as ${ROLE_DEFINITIONS[created.role].title}!`);
       setIsAddModalOpen(false);
+      setCreatedCredentials({
+        name: created.name,
+        email: created.email,
+        role: created.role,
+        password: newPassword,
+        department: newDepartment.trim() || 'Rwanda FDA Central Surveillance'
+      });
       setNewName('');
       setNewEmail('');
       setNewPassword('');
@@ -1058,7 +1090,7 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentU
                 <label className="block text-xs font-semibold text-slate-700 mb-2">
                   System Role & Privilege Tier *
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                   {(Object.keys(ROLE_DEFINITIONS) as UserRole[]).map((rKey) => {
                     const rDef = ROLE_DEFINITIONS[rKey];
                     const isSelected = newRole === rKey;
@@ -1070,8 +1102,8 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentU
                         onClick={() => setNewRole(rKey)}
                         className={`p-3 rounded-xl border-2 transition cursor-pointer flex flex-col justify-between ${
                           isSelected
-                            ? 'border-slate-900 bg-slate-50'
-                            : 'border-slate-200 hover:border-slate-300'
+                            ? 'border-slate-900 bg-slate-50 shadow-xs'
+                            : 'border-slate-200 hover:border-slate-300 bg-white'
                         }`}
                       >
                         <div>
@@ -1121,21 +1153,40 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentU
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Initial Password *
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    autoComplete="new-password"
-                    placeholder="At least 6 characters"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 font-mono"
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Initial Password *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={generateStrongPassword}
+                      className="text-[10.5px] font-semibold text-teal-600 hover:text-teal-700 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3 text-teal-600" /> Auto-Generate
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      autoComplete="new-password"
+                      placeholder="At least 6 characters"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full pl-3 pr-10 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                      tabIndex={-1}
+                    >
+                      {showNewPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
                   <p className="text-[10px] text-slate-400 mt-1">
-                    This password creates the user's Firebase sign-in account. They can change it later with Forgot Password.
+                    This password provisions their Firebase account. They can update it upon first login.
                   </p>
                 </div>
               </div>
@@ -1157,6 +1208,79 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentU
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════
+          MODAL: USER CREATED CREDENTIALS CONFIRMATION
+          ═══════════════════════════════════════════════════════════════ */}
+      {createdCredentials && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-scaleUp">
+            <div className="p-6 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto mb-3">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+
+              <h2 className="text-base font-bold text-slate-900">
+                Staff Account Successfully Created!
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                The account has been active and assigned full privileges in the system.
+              </p>
+
+              {/* Credentials Box */}
+              <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200 text-left space-y-2 font-mono text-xs">
+                <div className="flex justify-between items-center text-slate-600">
+                  <span className="font-sans font-medium text-slate-500 text-[11px]">Full Name:</span>
+                  <span className="font-semibold text-slate-900">{createdCredentials.name}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-600">
+                  <span className="font-sans font-medium text-slate-500 text-[11px]">Official Email:</span>
+                  <span className="font-semibold text-slate-900">{createdCredentials.email}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-600">
+                  <span className="font-sans font-medium text-slate-500 text-[11px]">Assigned Role:</span>
+                  <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 text-[10.5px]">
+                    {ROLE_DEFINITIONS[createdCredentials.role]?.title || createdCredentials.role}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-slate-600">
+                  <span className="font-sans font-medium text-slate-500 text-[11px]">Initial Password:</span>
+                  <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    {createdCredentials.password}
+                  </span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="mt-5 flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const text = `MedVerify System Credentials:\nName: ${createdCredentials.name}\nEmail: ${createdCredentials.email}\nRole: ${ROLE_DEFINITIONS[createdCredentials.role]?.title || createdCredentials.role}\nPassword: ${createdCredentials.password}\nPortal: ${window.location.origin}`;
+                    navigator.clipboard.writeText(text);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 3000);
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-slate-900 bg-slate-100 border border-slate-200 rounded-lg hover:bg-slate-200 transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>{copied ? 'Copied to Clipboard!' : 'Copy Credentials'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreatedCredentials(null);
+                    setCopied(false);
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

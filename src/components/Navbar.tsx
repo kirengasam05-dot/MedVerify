@@ -385,8 +385,46 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               </div>
 
+              {/* Role Perspective Switcher */}
+              {onSwitchRole && (
+                <div className="pt-2 pb-1 border-t border-slate-100">
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2 mb-1.5 flex items-center justify-between">
+                    <span>Active Perspective</span>
+                    <span className="text-[9px] font-bold text-teal bg-teal/10 px-1.5 py-0.5 rounded">Rwanda FDA</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 text-[11px]">
+                    {[
+                      { role: 'admin' as UserRole, label: 'Admin (All)' },
+                      { role: 'manager' as UserRole, label: 'Manager' },
+                      { role: 'ict_staff' as UserRole, label: 'ICT Staff' },
+                      { role: 'field_officer' as UserRole, label: 'Field Officer' },
+                    ].map((item) => {
+                      const isActive = currentUser.role === item.role;
+                      return (
+                        <button
+                          key={item.role}
+                          type="button"
+                          onClick={() => {
+                            onSwitchRole(item.role);
+                            setUserMenuOpen(false);
+                          }}
+                          className={`px-2 py-1.5 rounded-lg text-left font-medium transition cursor-pointer flex items-center justify-between ${
+                            isActive
+                              ? 'bg-slate-900 text-white font-semibold'
+                              : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          <span className="truncate">{item.label}</span>
+                          {isActive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 ml-1" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Divider */}
-              <div className="my-2 border-t border-slate-100" />
+              <div className="my-1.5 border-t border-slate-100" />
 
               {/* Sign Out CTA */}
               <button

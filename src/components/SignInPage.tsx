@@ -43,6 +43,13 @@ import { submitAccessRequest, type UserRole } from '../api';
 
 interface SignInPageProps {
   onSignIn: (email: string, password: string) => Promise<void>;
+  onRegister?: (data: {
+    name: string;
+    email: string;
+    password: string;
+    role: UserRole;
+    department: string;
+  }) => Promise<void>;
   error: string;
 }
 
@@ -53,7 +60,11 @@ const BLACK_LIGHT = '#26262C';   // light black (for gradients)
 const EMERALD     = '#10B981';   // success accent
 const EMERALD_DK  = '#059669';
 
-export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, error }) => {
+export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, onRegister, error }) => {
+  // Mode toggle: 'signin' | 'register'
+  const [authMode, setAuthMode] = useState<'signin' | 'register'>('signin');
+
+  // Sign in state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -61,6 +72,15 @@ export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, error }) => {
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
   const [resetMessage, setResetMessage] = useState('');
+
+  // Register state
+  const [regName, setRegName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regRole, setRegRole] = useState<UserRole>('admin');
+  const [regDepartment, setRegDepartment] = useState('Rwanda FDA Central Surveillance');
+  const [regPassword, setRegPassword] = useState('');
+  const [regConfirmPassword, setRegConfirmPassword] = useState('');
+  const [showRegPassword, setShowRegPassword] = useState(false);
 
   // Request Access modal
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
@@ -73,7 +93,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, error }) => {
   const [reqSuccess, setReqSuccess] = useState('');
   const [reqError, setReqError] = useState('');
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSignInSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setBusy(true);
     setFormError('');
@@ -88,6 +108,56 @@ export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, error }) => {
         setFormError('Too many failed attempts. Please wait a moment.');
       } else {
         setFormError(err?.message || 'Sign-in failed. Please check your credentials.');
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRegisterSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setFormError('');
+    setResetMessage('');
+
+    if (!regName.trim() || !regEmail.trim()) {
+      setFormError('Full name and official email are required.');
+      setBusy(false);
+      return;
+    }
+
+    if (regPassword.length < 6) {
+      setFormError('Password must be at least 6 characters.');
+      setBusy(false);
+      return;
+    }
+
+    if (regPassword !== regConfirmPassword) {
+      setFormError('Passwords do not match. Please re-enter.');
+      setBusy(false);
+      return;
+    }
+
+    try {
+      if (onRegister) {
+        await onRegister({
+          name: regName.trim(),
+          email: regEmail.trim().toLowerCase(),
+          password: regPassword,
+          role: regRole,
+          department: regDepartment.trim(),
+        });
+      } else {
+        await onSignIn(regEmail.trim(), regPassword);
+      }
+    } catch (err: any) {
+      const code = err?.code;
+      if (code === 'auth/email-already-in-use') {
+        setFormError('This email is already registered. Please switch to Sign In or reset password.');
+      } else if (code === 'auth/weak-password') {
+        setFormError('The password is too weak. Please use numbers and special characters.');
+      } else {
+        setFormError(err?.message || 'Could not create account. Please verify your details.');
       }
     } finally {
       setBusy(false);
@@ -153,8 +223,8 @@ export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, error }) => {
           ═══════════════════════════════════════════════════════════════ */}
       <section className="flex-1 flex flex-col bg-white lg:overflow-y-auto">
 
-        {/* ── Top: Logo ── */}
-        <div className="px-6 lg:px-8 pt-5 pb-3 lg:pt-6 lg:pb-4 flex-shrink-0">
+        {/* ── Top: Logo & Mode Tabs ── */}
+        <div className="px-6 lg:px-8 pt-5 pb-2 lg:pt-6 lg:pb-3 flex-shrink-0 flex items-center justify-between">
           <div className="inline-flex items-center gap-2">
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-[11px] text-white"
@@ -166,19 +236,53 @@ export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, error }) => {
               MedVerify
             </span>           
           </div>
+
+          {/* Mode Switcher Pills */}
+          <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('signin');
+                setFormError('');
+              }}
+              className={`px-3 py-1 rounded-lg font-medium transition ${
+                authMode === 'signin'
+                  ? 'bg-white text-slate-900 shadow-xs font-semibold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('register');
+                setFormError('');
+              }}
+              className={`px-3 py-1 rounded-lg font-medium transition ${
+                authMode === 'register'
+                  ? 'bg-white text-slate-900 shadow-xs font-semibold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Create Account
+            </button>
+          </div>
         </div>
 
         {/* ── Center: Form ── */}
         <div className="flex-1 flex items-center justify-center px-6 lg:px-8 py-3">
-          <div className="w-full max-w-[380px]">
+          <div className="w-full max-w-[420px]">
 
             {/* Heading */}
-            <div className="mb-5">
-              <h1 className="text-[24px] font-semibold text-slate-900 tracking-tight">
-                Welcome Back
+            <div className="mb-4">
+              <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight">
+                {authMode === 'signin' ? 'Welcome Back' : 'Create Staff Account'}
               </h1>
-              <p className="text-[12.5px] text-slate-500 mt-1.5 leading-relaxed">
-                Enter your authorized credentials to access the surveillance gateway.
+              <p className="text-[12px] text-slate-500 mt-1 leading-relaxed">
+                {authMode === 'signin'
+                  ? 'Enter your credentials to access the surveillance gateway.'
+                  : 'Register your official account with full Rwanda FDA system privileges.'}
               </p>
             </div>
 
@@ -186,7 +290,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, error }) => {
             {(formError || error) && (
               <div
                 role="alert"
-                className="mb-4 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11.5px] flex items-start gap-2"
+                className="mb-3.5 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11.5px] flex items-start gap-2"
               >
                 <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                 <span>{formError || error}</span>
@@ -197,119 +301,328 @@ export const SignInPage: React.FC<SignInPageProps> = ({ onSignIn, error }) => {
             {resetMessage && (
               <div
                 role="status"
-                className="mb-4 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11.5px] flex items-start gap-2"
+                className="mb-3.5 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11.5px] flex items-start gap-2"
               >
                 <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-emerald-600" />
                 <span>{resetMessage}</span>
               </div>
             )}
 
-            {/* ── Form ── */}
-            <form onSubmit={handleSubmit} className="space-y-3.5">
+            {/* ── SIGN IN FORM ── */}
+            {authMode === 'signin' ? (
+              <form onSubmit={handleSignInSubmit} className="space-y-3.5">
+                {/* Email */}
+                <div>
+                  <label className="block text-[12px] font-medium text-slate-700 mb-1">
+                    Official email
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="email"
+                      autoComplete="username"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="admin@example.gov.rw"
+                      className={`${inputClass} pr-3`}
+                    />
+                  </div>
+                </div>
 
-              {/* Email */}
-              <div>
-                <label className="block text-[12px] font-medium text-slate-700 mb-1">
-                  Official email
-                </label>
-                <div className="relative">
-                  <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                {/* Password */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[12px] font-medium text-slate-700">
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => void handlePasswordReset()}
+                      className="text-[11.5px] font-medium text-slate-600 hover:text-slate-900 transition cursor-pointer"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className={`${inputClass} pr-10`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Remember me */}
+                <div className="flex items-center justify-between pt-0.5">
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded border-slate-300 focus:ring-slate-900/20 cursor-pointer"
+                      style={{ accentColor: BLACK_DEEP }}
+                    />
+                    <span className="text-[12px] text-slate-600">Remember this device</span>
+                  </label>
+                </div>
+
+                {/* Submit button — black */}
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold text-[13px] text-white shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-1 hover:shadow-md cursor-pointer"
+                  style={{ backgroundColor: BLACK_DEEP }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BLACK_SOFT)}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = BLACK_DEEP)}
+                >
+                  {busy ? (
+                    <span
+                      className="w-4 h-4 border-2 rounded-full animate-spin"
+                      style={{ borderColor: '#FFFFFF40', borderTopColor: '#FFFFFF' }}
+                    />
+                  ) : (
+                    <>
+                      <span>Sign In</span>
+                      <ArrowRight size={14} />
+                    </>
+                  )}
+                </button>
+
+                {/* Switch to Register link */}
+                <p className="text-center text-[12px] text-slate-500 mt-4">
+                  New staff member?{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('register');
+                      setFormError('');
+                    }}
+                    className="font-semibold text-slate-900 hover:underline cursor-pointer"
+                  >
+                    Create an account here
+                  </button>
+                </p>
+              </form>
+            ) : (
+              /* ── CREATE ACCOUNT FORM ── */
+              <form onSubmit={handleRegisterSubmit} className="space-y-3 max-h-[75vh] overflow-y-auto pr-1">
+                {/* Full Name */}
+                <div>
+                  <label className="block text-[11.5px] font-medium text-slate-700 mb-1">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Dr. Josue K."
+                    value={regName}
+                    onChange={(e) => setRegName(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-[12.5px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition"
+                  />
+                </div>
+
+                {/* Official Email */}
+                <div>
+                  <label className="block text-[11.5px] font-medium text-slate-700 mb-1">
+                    Official Email *
+                  </label>
                   <input
                     type="email"
-                    autoComplete="username"
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@example.gov.rw"
-                    className={`${inputClass} pr-3`}
+                    placeholder="admin@example.gov.rw"
+                    value={regEmail}
+                    onChange={(e) => setRegEmail(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-[12.5px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition"
                   />
                 </div>
-              </div>
 
-              {/* Password */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[12px] font-medium text-slate-700">
-                    Password
+                {/* Role selection */}
+                <div>
+                  <label className="block text-[11.5px] font-medium text-slate-700 mb-1">
+                    Account Role & Privileges *
                   </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      {
+                        key: 'admin' as UserRole,
+                        title: 'Administrator',
+                        desc: 'Full access to ALL 8 modules',
+                        color: 'border-indigo-300 bg-indigo-50/50 text-indigo-900'
+                      },
+                      {
+                        key: 'manager' as UserRole,
+                        title: 'Manager',
+                        desc: 'Oversee cases, users & reports',
+                        color: 'border-purple-300 bg-purple-50/50 text-purple-900'
+                      },
+                      {
+                        key: 'ict_staff' as UserRole,
+                        title: 'ICT Systems',
+                        desc: 'Registry & hardware integration',
+                        color: 'border-blue-300 bg-blue-50/50 text-blue-900'
+                      },
+                      {
+                        key: 'field_officer' as UserRole,
+                        title: 'Field Officer',
+                        desc: 'Inspection & camera scans',
+                        color: 'border-emerald-300 bg-emerald-50/50 text-emerald-900'
+                      }
+                    ].map((item) => {
+                      const isSel = regRole === item.key;
+                      return (
+                        <div
+                          key={item.key}
+                          onClick={() => setRegRole(item.key)}
+                          className={`p-2 rounded-xl border-2 cursor-pointer transition text-left ${
+                            isSel
+                              ? 'border-slate-900 bg-slate-50 shadow-xs'
+                              : 'border-slate-200 hover:border-slate-300 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-slate-900">{item.title}</span>
+                            {isSel && <span className="w-1.5 h-1.5 rounded-full bg-slate-900" />}
+                          </div>
+                          <p className="text-[9.5px] text-slate-500 mt-0.5 leading-tight">{item.desc}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Department */}
+                <div>
+                  <label className="block text-[11.5px] font-medium text-slate-700 mb-1">
+                    Department / Post
+                  </label>
+                  <input
+                    type="text"
+                    value={regDepartment}
+                    onChange={(e) => setRegDepartment(e.target.value)}
+                    placeholder="e.g. Rwanda FDA Central Surveillance"
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-[12.5px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition"
+                  />
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {['Kigali Central', 'Rubavu Post', 'Rusizi Post', 'ICT Systems'].map((dept) => (
+                      <button
+                        key={dept}
+                        type="button"
+                        onClick={() => setRegDepartment(dept)}
+                        className="text-[9.5px] text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded cursor-pointer transition"
+                      >
+                        {dept}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Passwords */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11.5px] font-medium text-slate-700 mb-1">
+                      Password *
+                    </label>
+                    <input
+                      type={showRegPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      placeholder="Min 6 chars"
+                      value={regPassword}
+                      onChange={(e) => setRegPassword(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-[12px] text-slate-900 focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11.5px] font-medium text-slate-700 mb-1">
+                      Confirm *
+                    </label>
+                    <input
+                      type={showRegPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      placeholder="Confirm"
+                      value={regConfirmPassword}
+                      onChange={(e) => setRegConfirmPassword(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-[12px] text-slate-900 focus:outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Show password check */}
+                <div className="flex items-center justify-between text-[11px] text-slate-500">
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showRegPassword}
+                      onChange={(e) => setShowRegPassword(e.target.checked)}
+                      className="rounded border-slate-300"
+                    />
+                    <span>Show password</span>
+                  </label>
+                </div>
+
+                {/* Submit button */}
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-semibold text-[13px] text-white shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-2 hover:shadow-md cursor-pointer"
+                  style={{ backgroundColor: BLACK_DEEP }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BLACK_SOFT)}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = BLACK_DEEP)}
+                >
+                  {busy ? (
+                    <span
+                      className="w-4 h-4 border-2 rounded-full animate-spin"
+                      style={{ borderColor: '#FFFFFF40', borderTopColor: '#FFFFFF' }}
+                    />
+                  ) : (
+                    <>
+                      <span>Create Account & Sign In</span>
+                      <ArrowRight size={14} />
+                    </>
+                  )}
+                </button>
+
+                <p className="text-center text-[11.5px] text-slate-500 mt-2">
+                  Already have an account?{' '}
                   <button
                     type="button"
-                    onClick={() => void handlePasswordReset()}
-                    className="text-[11.5px] font-medium text-slate-600 hover:text-slate-900 transition"
+                    onClick={() => {
+                      setAuthMode('signin');
+                      setFormError('');
+                    }}
+                    className="font-semibold text-slate-900 hover:underline cursor-pointer"
                   >
-                    Forgot password?
+                    Sign in here
                   </button>
-                </div>
-                <div className="relative">
-                  <Lock className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="current-password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className={`${inputClass} pr-10`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
-                    tabIndex={-1}
-                  >
-                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                </div>
-              </div>
+                </p>
+              </form>
+            )}
 
-              {/* Remember me */}
-              <div className="flex items-center justify-between pt-0.5">
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded border-slate-300 focus:ring-slate-900/20 cursor-pointer"
-                    style={{ accentColor: BLACK_DEEP }}
-                  />
-                  <span className="text-[12px] text-slate-600">Remember this device</span>
-                </label>
-              </div>
-
-              {/* Submit button — black */}
-              <button
-                type="submit"
-                disabled={busy}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold text-[13px] text-white shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-1 hover:shadow-md"
-                style={{ backgroundColor: BLACK_DEEP }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BLACK_SOFT)}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = BLACK_DEEP)}
-              >
-                {busy ? (
-                  <span
-                    className="w-4 h-4 border-2 rounded-full animate-spin"
-                    style={{ borderColor: '#FFFFFF40', borderTopColor: '#FFFFFF' }}
-                  />
-                ) : (
-                  <>
-                    <span>Sign In</span>
-                    <ArrowRight size={14} />
-                  </>
-                )}
-              </button>
-            </form>
-
-            {/* Request access */}
-            <p className="text-center text-[12px] text-slate-500 mt-5">
-              Don't have access yet?{' '}
+            {/* Request access shortcut */}
+            <p className="text-center text-[11.5px] text-slate-400 mt-4">
+              Need special approval?{' '}
               <button
                 type="button"
                 onClick={() => setIsRequestModalOpen(true)}
-                className="font-semibold transition hover:opacity-80"
-                style={{ color: BLACK_SOFT }}
+                className="font-medium text-slate-600 hover:text-slate-900 transition underline cursor-pointer"
               >
-                Request Access
+                Request Access Dossier
               </button>
             </p>
           </div>
