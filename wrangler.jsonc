@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "medverify",
+  "name": "medverify-259",
   "compatibility_date": "2026-10-12",
   "pages_build_output_dir": "dist",
   "vars": {
