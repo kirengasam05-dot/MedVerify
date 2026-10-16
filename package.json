@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "deploy": "npm run build && npx wrangler pages deploy dist --project-name=medverify-259"
+    "deploy": "npm run build && npx wrangler pages deploy dist --project-name=medverify-259 --force"
   },
   "dependencies": {
     "@types/jsbarcode": "^3.11.4",
