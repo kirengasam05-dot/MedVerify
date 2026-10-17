@@ -447,6 +447,11 @@ export default function App() {
                 <Registry
                   products={products}
                   onChange={refreshData}
+                  onProductUpdated={(updated) => {
+                    setProducts((current) => current.map((product) =>
+                      product.id === updated.id ? { ...product, ...updated } : product
+                    ))
+                  }}
                   externalSearch={globalSearch}
                 />
               )}
@@ -1125,10 +1130,12 @@ function ScanPage({ onDone }: { onDone: () => void }) {
 function Registry({
   products,
   onChange,
+  onProductUpdated,
   externalSearch = ''
 }: {
   products: (Product & { id: string })[]
   onChange: () => Promise<void>
+  onProductUpdated: (product: Product & { id: string }) => void
   externalSearch?: string
 }) {
   const [f, setF] = useState({
@@ -1141,6 +1148,7 @@ function Registry({
   })
   const [busy, setBusy] = useState(false)
   const [submitMessage, setSubmitMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
+  const [updatingProductId, setUpdatingProductId] = useState<string | null>(null)
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1170,11 +1178,21 @@ function Registry({
   }
 
   const handleToggle = async (pid: string) => {
+    if (updatingProductId) return
+    setUpdatingProductId(pid)
+    setSubmitMessage(null)
     try {
-      await toggleProductStatus(pid)
-      onChange()
+      const updated = await toggleProductStatus(pid)
+      onProductUpdated(updated)
+      await onChange()
+      setSubmitMessage({
+        kind: 'success',
+        text: `${updated.name} is now ${updated.status === 'valid' ? 'valid' : 'flagged'}.`
+      })
     } catch (err: any) {
-      alert(err?.message || 'Could not toggle status')
+      setSubmitMessage({ kind: 'error', text: err?.message || 'Could not update product status.' })
+    } finally {
+      setUpdatingProductId(null)
     }
   }
 
@@ -1360,14 +1378,19 @@ function Registry({
                 </td>
                 <td className="px-4 py-3">
                   <button
-                    onClick={() => handleToggle(p.id)}
+                    type="button"
+                    onClick={() => void handleToggle(p.id)}
+                    disabled={updatingProductId !== null}
+                    aria-label={`${p.status === 'valid' ? 'Flag' : 'Clear flag for'} ${p.name}`}
                     className={`rounded-full px-2.5 py-0.5 text-xs font-semibold border ${
                       p.status === 'valid'
                         ? 'bg-genuine/10 text-genuine border-genuine/40 hover:bg-genuine/20'
                         : 'bg-alert/10 text-alert border-alert/40 hover:bg-alert/20'
-                    }`}
+                    } disabled:cursor-wait disabled:opacity-60`}
                   >
-                    {p.status === 'valid' ? 'Valid (Click to Flag)' : 'Flagged (Click to Clear)'}
+                    {updatingProductId === p.id
+                      ? 'Updating…'
+                      : p.status === 'valid' ? 'Valid (Click to Flag)' : 'Flagged (Click to Clear)'}
                   </button>
                 </td>
               </tr>
