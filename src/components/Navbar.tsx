@@ -31,6 +31,15 @@ interface NavbarProps {
   products?: (Product & { id: string })[]
 }
 
+function loadReadOverrides(storageKey: string): Record<string, boolean> {
+  try {
+    const stored = JSON.parse(localStorage.getItem(storageKey) || '{}')
+    return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {}
+  } catch {
+    return {}
+  }
+}
+
 export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   onSwitchRole,
@@ -44,11 +53,20 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [notifMenuOpen, setNotifMenuOpen] = useState(false)
+  const [showAllNotifications, setShowAllNotifications] = useState(false)
+  const notificationReadStorageKey = `medverify-notifications-read:${currentUser.uid}`
+  const [readOverrides, setReadOverrides] = useState<Record<string, boolean>>(
+    () => loadReadOverrides(notificationReadStorageKey)
+  )
   const [searchFocused, setSearchFocused] = useState(false)
   
   const userMenuRef = useRef<HTMLDivElement>(null)
   const notifMenuRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setReadOverrides(loadReadOverrides(notificationReadStorageKey))
+  }, [notificationReadStorageKey])
 
   // Close dropdowns on outside click or escape
   useEffect(() => {
@@ -107,8 +125,39 @@ export const Navbar: React.FC<NavbarProps> = ({
         read: true
       })
     }
-    return list
-  }, [scans, products, health])
+    return list.map((notification) => ({
+      ...notification,
+      read: readOverrides[notification.id] ?? notification.read
+    }))
+  }, [scans, products, health, readOverrides])
+
+  const unreadNotificationCount = sampleNotifications.filter((notification) => !notification.read).length
+  const visibleNotifications = showAllNotifications ? sampleNotifications : sampleNotifications.slice(0, 4)
+
+  const setNotificationRead = (id: string, read: boolean) => {
+    setReadOverrides((current) => {
+      const next = { ...current, [id]: read }
+      try {
+        localStorage.setItem(notificationReadStorageKey, JSON.stringify(next))
+      } catch {
+        // Keep the notification state usable for this session if storage is unavailable.
+      }
+      return next
+    })
+  }
+
+  const markAllNotificationsRead = () => {
+    setReadOverrides((current) => {
+      const next = { ...current }
+      sampleNotifications.forEach((notification) => { next[notification.id] = true })
+      try {
+        localStorage.setItem(notificationReadStorageKey, JSON.stringify(next))
+      } catch {
+        // Keep the notification state usable for this session if storage is unavailable.
+      }
+      return next
+    })
+  }
 
   // Dynamic search suggestions derived from registered products and locations
   const filteredSuggestions = useMemo(() => {
@@ -226,10 +275,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             aria-label="View notifications"
           >
             <Bell className="w-4 h-4" />
-            {/* Numbered Badge instead of red dot */}
-            <span className="absolute top-1 right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white ring-2 ring-white">
-              3
-            </span>
+            {unreadNotificationCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex min-w-3.5 h-3.5 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white ring-2 ring-white">
+                {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+              </span>
+            )}
           </button>
 
           {notifMenuOpen && (
@@ -239,12 +289,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                   Notifications
                 </span>
                 <span className="text-[10px] font-medium text-teal bg-teal/10 px-2 py-0.5 rounded-full">
-                  3 Unread
+                  {unreadNotificationCount} Unread
                 </span>
               </div>
 
               <div className="space-y-1 max-h-64 overflow-y-auto">
-                {sampleNotifications.map((notif) => (
+                {visibleNotifications.length === 0 && (
+                  <p className="px-2 py-5 text-center text-xs text-slate-500">No notifications yet.</p>
+                )}
+                {visibleNotifications.map((notif) => (
                   <div
                     key={notif.id}
                     className={`p-2.5 rounded-xl transition border cursor-pointer group ${
@@ -266,9 +319,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                     <p className="text-[11px] text-slate-500 leading-snug pl-3">{notif.detail}</p>
                     
-                    {/* Mark as unread action */}
-                    <div className="mt-2 pl-3 flex items-center space-x-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button className="text-[10px] font-medium text-teal hover:underline flex items-center space-x-1">
+                    <div className="mt-2 pl-3 flex items-center space-x-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={() => setNotificationRead(notif.id, !notif.read)}
+                        className="text-[10px] font-medium text-teal hover:underline flex items-center space-x-1"
+                        aria-label={`${notif.read ? 'Mark as unread' : 'Mark as read'}: ${notif.title}`}
+                      >
                         {notif.read ? (
                           <><Mail className="w-3 h-3" /><span>Mark as unread</span></>
                         ) : (
@@ -281,11 +338,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
 
               <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between px-1">
-                <button className="text-[11px] font-medium text-slate-500 hover:text-teal transition cursor-pointer">
+                <button
+                  type="button"
+                  onClick={markAllNotificationsRead}
+                  disabled={unreadNotificationCount === 0}
+                  className="text-[11px] font-medium text-slate-500 hover:text-teal transition cursor-pointer disabled:cursor-default disabled:opacity-50"
+                >
                   Mark all as read
                 </button>
-                <button className="text-[11px] font-medium text-teal hover:underline cursor-pointer">
-                  View all notifications
+                <button
+                  type="button"
+                  onClick={() => setShowAllNotifications((showing) => !showing)}
+                  className="text-[11px] font-medium text-teal hover:underline cursor-pointer"
+                >
+                  {showAllNotifications ? 'Show fewer' : 'View all notifications'}
                 </button>
               </div>
             </div>
