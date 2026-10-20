@@ -191,7 +191,19 @@ export default function App() {
         return
       }
       try {
-        const token = await user.getIdToken()
+        // forceRefresh=true fetches a new token from Firebase servers.
+        // If this throws, the session is unrecoverable (project changed, refresh token revoked, etc.)
+        let token: string
+        try {
+          token = await user.getIdToken(true)
+        } catch (tokenErr: any) {
+          console.warn('[Auth] Token refresh failed — signing out stale session:', tokenErr?.message)
+          await signOut(auth)
+          setCurrentUser(null)
+          setAuthError('Your session expired. Please sign in again.')
+          setAuthReady(true)
+          return
+        }
         try {
           const profile = await fetchCurrentUser(token)
           setCurrentUser(profile)
@@ -252,7 +264,7 @@ export default function App() {
     console.log('[Auth] Attempting sign-in for:', email.trim())
     const cred = await signInWithEmailAndPassword(auth, email.trim(), password)
     console.log('[Auth] Firebase sign-in successful. Token retrieved.')
-    const token = await cred.user.getIdToken()
+    const token = await cred.user.getIdToken(true)  // forceRefresh after fresh sign-in
     console.log('[Auth] Verifying role permissions with backend /api/me...')
     try {
       const profile = await fetchCurrentUser(token)

@@ -9,7 +9,8 @@ export async function getAuthToken(): Promise<string | null> {
   const user = auth.currentUser
   if (!user) return null
   try {
-    return await user.getIdToken()
+    // forceRefresh=true ensures we never send an expired cached token
+    return await user.getIdToken(true)
   } catch (err) {
     console.warn('[Auth] Failed to get ID token:', err)
     return null
